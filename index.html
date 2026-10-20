@@ -25,22 +25,22 @@
     html, body, #map {
       height: 100%;
       width: 100vw;
-      background-color: #121212;
+      background-color: #1c1c1e;
       overflow: hidden;
     }
 
-    /* Option No Pedaggi */
+    /* Option No Pedaggi in alto a destra */
     .route-options {
       position: absolute;
       top: 48px;
       right: 16px;
       z-index: 1000;
-      background: rgba(28, 28, 30, 0.92);
+      background: rgba(30, 30, 35, 0.92);
       backdrop-filter: blur(15px);
       -webkit-backdrop-filter: blur(15px);
       padding: 8px 14px;
       border-radius: 18px;
-      border: 1px solid rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.15);
       display: flex;
       align-items: center;
       gap: 8px;
@@ -64,10 +64,10 @@
       z-index: 1000;
       width: calc(100% - 32px);
       max-width: 480px;
-      background: rgba(28, 28, 30, 0.92);
+      background: rgba(30, 30, 35, 0.92);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 24px;
       display: flex;
       padding: 6px 10px;
@@ -112,7 +112,7 @@
       width: 50px;
       height: 50px;
       border-radius: 25px;
-      background: rgba(28, 28, 30, 0.92);
+      background: rgba(30, 30, 35, 0.92);
       color: white;
       border: 1px solid rgba(255, 255, 255, 0.15);
       display: flex;
@@ -155,7 +155,7 @@
       border: none; font-size: 16px; cursor: pointer;
     }
 
-    /* Pannello Guida Navigazione Attiva Stile Google Maps */
+    /* Barra Guida Navigazione Attiva Stile Google Maps */
     .nav-bar {
       position: absolute;
       bottom: -150px;
@@ -193,12 +193,14 @@
     <label for="avoidTolls">No pedaggi</label>
   </div>
 
-  <!-- Contenitore Mappa Vector 3D -->
+  <!-- Contenitore Mappa 3D -->
   <div id="map"></div>
 
   <!-- Controlli Fluttuanti -->
   <div class="map-controls" id="mapControls">
-    <button class="btn-ctrl active" id="btnSpeedCams" onclick="toggleSpeedCams()" title="Autovelox (📷)">📷</button>
+    <button class="btn-ctrl active" id="btnSpeedCams" onclick="toggleSpeedCams()" title="Autovelox">📷</button>
+    <button class="btn-ctrl" id="btnTraffic" onclick="toggleTraffic()" title="Traffico">🚥</button>
+    <button class="btn-ctrl" id="btnCompass" onclick="toggleCompassGyro()" title="Bussola/Giroscopio">🧭</button>
     <button class="btn-ctrl" onclick="locateUser(true)" title="La mia posizione">📍</button>
   </div>
 
@@ -228,13 +230,44 @@
   <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
 
   <script>
-    // Inizializzazione Mappa 3D Vettoriale Scura
+    // Stile elegante e bilanciato (non troppo nero, ben leggibile)
+    const mapStyle = {
+      "version": 8,
+      "sources": {
+        "osm-tiles": {
+          "type": "raster",
+          "tiles": [
+            "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png",
+            "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png"
+          ],
+          "tileSize": 256,
+          "attribution": "&copy; OpenStreetMap &copy; CARTO"
+        },
+        "traffic-tiles": {
+          "type": "raster",
+          "tiles": [
+            "https://a.freeway-traffic.com/tiles/traffic/{z}/{x}/{y}.png"
+          ],
+          "tileSize": 256
+        }
+      },
+      "layers": [
+        {
+          "id": "osm-tiles-layer",
+          "type": "raster",
+          "source": "osm-tiles",
+          "minzoom": 0,
+          "maxzoom": 19
+        }
+      ]
+    };
+
     const map = new maplibregl.Map({
       container: 'map',
-      style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+      style: mapStyle,
       center: [12.4964, 41.9028],
       zoom: 6,
-      pitch: 0, // Mappa piatta di default
+      pitch: 0,
       bearing: 0
     });
 
@@ -244,6 +277,8 @@
     let watchId = null;
     let userMarker = null;
     let targetMarker = null;
+    let isTrafficOn = false;
+    let isGyroActive = false;
 
     function speak(text) {
       if ('speechSynthesis' in window) {
@@ -255,7 +290,66 @@
       }
     }
 
-    // Localizzazione e GPS
+    // Toggle Traffico
+    function toggleTraffic() {
+      isTrafficOn = !isTrafficOn;
+      const btn = document.getElementById('btnTraffic');
+      
+      if (isTrafficOn) {
+        btn.classList.add('active');
+        if (!map.getLayer('traffic-layer')) {
+          map.addLayer({
+            'id': 'traffic-layer',
+            'type': 'raster',
+            'source': 'traffic-tiles',
+            'paint': { 'raster-opacity': 0.7 }
+          });
+        }
+      } else {
+        btn.classList.remove('active');
+        if (map.getLayer('traffic-layer')) {
+          map.removeLayer('traffic-layer');
+        }
+      }
+    }
+
+    // Attivazione Giroscopio / Bussola Smartphone
+    function toggleCompassGyro() {
+      isGyroActive = !isGyroActive;
+      const btn = document.getElementById('btnCompass');
+
+      if (isGyroActive) {
+        btn.classList.add('active');
+        enableGyro();
+      } else {
+        btn.classList.remove('active');
+        window.removeEventListener('deviceorientation', handleGyroOrientation);
+      }
+    }
+
+    function enableGyro() {
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission().then(response => {
+          if (response === 'granted') {
+            window.addEventListener('deviceorientation', handleGyroOrientation);
+          } else {
+            alert("Permesso giroscopio non concesso.");
+          }
+        }).catch(console.error);
+      } else {
+        window.addEventListener('deviceorientation', handleGyroOrientation);
+      }
+    }
+
+    function handleGyroOrientation(e) {
+      if (!isGyroActive) return;
+      let alpha = e.alpha || e.webkitCompassHeading;
+      if (alpha !== undefined && alpha !== null) {
+        map.setBearing(alpha);
+      }
+    }
+
+    // Localizzazione e Tracciamento GPS
     function locateUser(centerMap = false) {
       if (!navigator.geolocation) return;
 
@@ -269,25 +363,24 @@
 
         if (!userMarker) {
           const el = document.createElement('div');
-          el.style.width = '18px';
-          el.style.height = '18px';
+          el.style.width = '20px';
+          el.style.height = '20px';
           el.style.backgroundColor = '#0A84FF';
           el.style.borderRadius = '50%';
           el.style.border = '3px solid white';
-          el.style.boxShadow = '0 0 10px rgba(10,132,255,0.8)';
+          el.style.boxShadow = '0 0 12px rgba(10,132,255,0.9)';
           
           userMarker = new maplibregl.Marker(el).setLngLat(userLocation).addTo(map);
         } else {
           userMarker.setLngLat(userLocation);
         }
 
-        // Se siamo in Navigazione, la mappa va in 3D (pitch 60°), ingrandisce e ruota verso l'auto
         if (isNavigating) {
           map.easeTo({
             center: userLocation,
             zoom: 17.5,
-            pitch: 60, // Inclinazione 3D reale
-            bearing: heading || map.getBearing(),
+            pitch: 60, // Prospettiva 3D
+            bearing: (heading !== null && heading !== undefined) ? heading : map.getBearing(),
             duration: 1000
           });
         } else if (centerMap) {
@@ -300,7 +393,7 @@
       });
     }
 
-    // Ricerca Indirizzo
+    // Ricerca Indirizzi
     async function searchPlace() {
       const query = document.getElementById('searchInput').value;
       if (!query) return;
@@ -331,7 +424,7 @@
       }
     }
 
-    // Avvio Navigazione in 3D Stile Google Maps
+    // Avvio Navigazione 3D
     async function startNavigation() {
       if (!userLocation) {
         alert("Attiva prima il GPS toccando il pulsante 📍");
@@ -345,17 +438,20 @@
       document.getElementById('navBar').classList.add('active');
       document.getElementById('mapControls').style.bottom = '110px';
 
-      // Passaggio automatico alla Vista 3D
+      // Attiva giroscopio se disponibile
+      enableGyro();
+      isGyroActive = true;
+      document.getElementById('btnCompass').classList.add('active');
+
       map.flyTo({
         center: userLocation,
         zoom: 17.5,
-        pitch: 60, // Inclinazione 3D
+        pitch: 60, // Modalità 3D
         duration: 1500
       });
 
       const avoidTolls = document.getElementById('avoidTolls').checked;
       
-      // Calcolo linea percorso
       try {
         const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${userLocation[0]},${userLocation[1]};${targetLocation[0]},${targetLocation[1]}?overview=full&geometries=geojson${avoidTolls ? '&exclude=toll' : ''}`);
         const data = await res.json();
@@ -382,14 +478,14 @@
               'type': 'line',
               'source': 'route',
               'layout': { 'line-join': 'round', 'line-cap': 'round' },
-              'paint': { 'line-color': '#30d158', 'line-width': 8, 'line-opacity': 0.85 }
+              'paint': { 'line-color': '#0A84FF', 'line-width': 8, 'line-opacity': 0.9 }
             });
           }
 
           speak(`Navigazione 3D avviata. Distanza ${km} chilometri.`);
         }
       } catch (e) {
-        console.log("Errore percorso");
+        console.log("Errore calcolo percorso");
       }
     }
 
@@ -400,7 +496,10 @@
       document.getElementById('routeOptions').style.display = 'flex';
       document.getElementById('mapControls').style.bottom = '105px';
 
-      // Ripristina la mappa in 2D dall'alto
+      isGyroActive = false;
+      document.getElementById('btnCompass').classList.remove('active');
+      window.removeEventListener('deviceorientation', handleGyroOrientation);
+
       map.easeTo({ pitch: 0, bearing: 0, zoom: 14 });
 
       if (map.getLayer('route')) map.removeLayer('route');
