@@ -70,40 +70,7 @@
       cursor: pointer;
     }
 
-    /* Controlli Fluttuanti Laterali */
-    .map-controls {
-      position: absolute;
-      bottom: 32px;
-      right: 16px;
-      z-index: 1000;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      transition: bottom 0.3s;
-    }
-
-    .btn-ctrl {
-      width: 50px;
-      height: 50px;
-      border-radius: 25px;
-      background: rgba(28, 28, 30, 0.92);
-      color: white;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-      cursor: pointer;
-      backdrop-filter: blur(10px);
-    }
-
-    .btn-ctrl.active {
-      background: #0A84FF;
-      border-color: #0A84FF;
-    }
-
-    /* Opzioni Percorso (Evita Autostrade) */
+    /* Opzioni Percorso (Evita Pedaggi) */
     .route-options {
       position: absolute;
       top: 108px;
@@ -126,6 +93,38 @@
       width: 18px;
       height: 18px;
       accent-color: #0A84FF;
+    }
+
+    /* Controlli Fluttuanti Laterali */
+    .map-controls {
+      position: absolute;
+      bottom: 100px;
+      right: 16px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .btn-ctrl {
+      width: 50px;
+      height: 50px;
+      border-radius: 25px;
+      background: rgba(28, 28, 30, 0.92);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+    }
+
+    .btn-ctrl.active {
+      background: #0A84FF;
+      border-color: #0A84FF;
     }
 
     /* Bottom Sheet del Locale */
@@ -199,13 +198,6 @@
       box-shadow: 0 2px 6px rgba(0,0,0,0.5);
     }
 
-    /* Vista 3D */
-    .perspective-3d #map {
-      transform: perspective(600px) rotateX(45deg) scale(1.15);
-      transform-origin: center bottom;
-      transition: transform 0.5s ease;
-    }
-
     .leaflet-routing-container { display: none !important; }
   </style>
 </head>
@@ -230,7 +222,6 @@
   <div class="map-controls" id="mapControls">
     <button class="btn-ctrl" id="btnSpeedCams" onclick="toggleSpeedCams()" title="Autovelox">📷</button>
     <button class="btn-ctrl" id="btnTraffic" onclick="toggleTraffic()" title="Traffico">🚥</button>
-    <button class="btn-ctrl" id="btnPerspective" onclick="togglePerspective()" title="Vista 3D">🧭</button>
     <button class="btn-ctrl" onclick="locateUser(true)" title="La mia posizione">📍</button>
   </div>
 
@@ -256,9 +247,11 @@
   <script>
     const map = L.map('map', { zoomControl: false }).setView([41.9028, 12.4964], 6);
     
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // Mappa scura stile navigatore moderno (CartoDB Dark Matter)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap'
+      subdomains: 'abcd',
+      attribution: '&copy; OpenStreetMap &copy; CARTO'
     }).addTo(map);
 
     let trafficLayer = L.tileLayer('https://{s}.freeway-traffic.com/tiles/traffic/{z}/{x}/{y}.png', {
@@ -288,7 +281,6 @@
       }
     }
 
-    // Caricamento Autovelox nelle vicinanze da OpenStreetMap (Overpass API)
     async function loadNearbySpeedCams(lat, lon) {
       if (!showSpeedCams) return;
 
@@ -321,7 +313,6 @@
       }
     }
 
-    // Toggle Visualizzazione Autovelox
     function toggleSpeedCams() {
       showSpeedCams = !showSpeedCams;
       const btn = document.getElementById('btnSpeedCams');
@@ -347,12 +338,6 @@
       }
     }
 
-    function togglePerspective() {
-      document.getElementById('bodyContainer').classList.toggle('perspective-3d');
-      document.getElementById('btnPerspective').classList.toggle('active');
-    }
-
-    // Calcolo distanza tra due punti in metri
     function getDistanceMeters(lat1, lon1, lat2, lon2) {
       const R = 6371e3;
       const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -363,7 +348,6 @@
       return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
-    // Controllo vicinanza Autovelox in tempo reale
     function checkProximitySpeedCams(lat, lon) {
       if (!isNavigating || !showSpeedCams) return;
 
@@ -376,7 +360,6 @@
       });
     }
 
-    // Tracciamento Posizione
     function locateUser(centerMap = false) {
       if (!navigator.geolocation) return;
 
@@ -408,7 +391,6 @@
       });
     }
 
-    // Ricerca Luoghi
     async function searchPlace() {
       const query = document.getElementById('searchInput').value;
       if (!query) return;
@@ -435,12 +417,10 @@
       }
     }
 
-    // Ricalcolo percorso se si spunta "Evita Pedaggi"
     function updateRouteIfNavigating() {
       if (isNavigating) startNavigation();
     }
 
-    // Avvio Navigazione
     function startNavigation() {
       if (!userLocation) {
         alert("Attiva prima il GPS della tua posizione.");
@@ -452,14 +432,10 @@
       document.getElementById('searchBox').style.display = 'none';
       document.getElementById('routeOptions').style.display = 'none';
       document.getElementById('navBar').classList.add('active');
-      document.getElementById('mapControls').style.bottom = '110px';
-      document.getElementById('bodyContainer').classList.add('perspective-3d');
 
       if (routingControl) map.removeControl(routingControl);
 
       const avoidTolls = document.getElementById('avoidTolls').checked;
-      
-      // Imposta il router con o senza autostrade/pedaggi
       const routerOptions = {
         serviceUrl: 'https://router.project-osrm.org/route/v1',
         language: 'it'
@@ -498,8 +474,6 @@
       document.getElementById('navBar').classList.remove('active');
       document.getElementById('searchBox').style.display = 'flex';
       document.getElementById('routeOptions').style.display = 'flex';
-      document.getElementById('mapControls').style.bottom = '32px';
-      document.getElementById('bodyContainer').classList.remove('perspective-3d');
 
       if (routingControl) map.removeControl(routingControl);
       speak("Navigazione terminata.");
