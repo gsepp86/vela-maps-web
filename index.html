@@ -8,7 +8,6 @@
   <meta name="apple-mobile-web-app-title" content="Vela Maps" />
   <title>Vela Maps Web</title>
   
-  <!-- Icona per la Schermata Home di iOS e Android -->
   <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png" />
   <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png" />
   
@@ -31,10 +30,10 @@
       overflow: hidden;
     }
 
-    /* Barra di ricerca superiore stile Vela Maps */
+    /* Barra di ricerca superiore */
     .search-box {
       position: absolute;
-      top: 48px; /* Spazio per la notch degli smartphone */
+      top: 48px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 1000;
@@ -64,19 +63,76 @@
       background: #0A84FF;
       color: white;
       border: none;
-      padding: 8px 18px;
+      padding: 8px 16px;
       border-radius: 18px;
       font-weight: 600;
       font-size: 15px;
       cursor: pointer;
     }
 
-    /* Scheda Dettaglio Locale (Bottom Sheet) */
+    /* Controlli Fluttuanti Laterali */
+    .map-controls {
+      position: absolute;
+      bottom: 32px;
+      right: 16px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: bottom 0.3s;
+    }
+
+    .btn-ctrl {
+      width: 50px;
+      height: 50px;
+      border-radius: 25px;
+      background: rgba(28, 28, 30, 0.92);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+    }
+
+    .btn-ctrl.active {
+      background: #0A84FF;
+      border-color: #0A84FF;
+    }
+
+    /* Opzioni Percorso (Evita Autostrade) */
+    .route-options {
+      position: absolute;
+      top: 108px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 999;
+      background: rgba(28, 28, 30, 0.92);
+      backdrop-filter: blur(15px);
+      padding: 8px 16px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #fff;
+      font-size: 14px;
+    }
+
+    .route-options input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #0A84FF;
+    }
+
+    /* Bottom Sheet del Locale */
     .place-card {
       position: absolute;
       bottom: -320px;
-      left: 0;
-      right: 0;
+      left: 0; right: 0;
       z-index: 1001;
       background: #1c1c1e;
       color: #fff;
@@ -85,113 +141,143 @@
       padding: 24px 20px;
       box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.6);
       transition: bottom 0.35s cubic-bezier(0.1, 0.9, 0.2, 1);
-      max-height: 280px;
       border-top: 1px solid rgba(255,255,255,0.1);
     }
 
-    .place-card.active {
-      bottom: 0;
-    }
-
-    .place-title {
-      font-size: 20px;
-      font-weight: 700;
-      margin-bottom: 6px;
-      color: #ffffff;
-    }
-
-    .place-sub {
-      font-size: 14px;
-      color: #a1a1a6;
-      margin-bottom: 18px;
-      line-height: 1.4;
-    }
+    .place-card.active { bottom: 0; }
+    .place-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    .place-sub { font-size: 14px; color: #a1a1a6; margin-bottom: 18px; line-height: 1.4; }
 
     .btn-route {
-      display: block;
-      width: 100%;
-      background: #30d158;
-      color: #000000;
-      font-weight: 700;
-      text-align: center;
-      padding: 14px;
-      border-radius: 14px;
-      border: none;
-      font-size: 16px;
-      cursor: pointer;
+      display: block; width: 100%; background: #30d158; color: #000;
+      font-weight: 700; text-align: center; padding: 14px; border-radius: 14px;
+      border: none; font-size: 16px; cursor: pointer;
     }
 
-    /* Pulsante posizione GPS */
-    .fab-container {
+    /* Pannello Navigazione Attiva */
+    .nav-bar {
       position: absolute;
-      bottom: 32px;
-      right: 16px;
-      z-index: 1000;
+      bottom: -150px;
+      left: 0; right: 0;
+      z-index: 1002;
+      background: #1c1c1e;
+      color: #fff;
+      padding: 20px;
+      border-top-left-radius: 24px;
+      border-top-right-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 -6px 24px rgba(0,0,0,0.6);
+      transition: bottom 0.35s ease;
+      border-top: 1px solid rgba(255,255,255,0.1);
     }
 
-    .fab {
-      width: 52px;
-      height: 52px;
-      border-radius: 26px;
-      background: #2c2c2e;
+    .nav-bar.active { bottom: 0; }
+    .nav-info { display: flex; flex-direction: column; }
+    .nav-time { font-size: 24px; font-weight: bold; color: #30d158; }
+    .nav-details { font-size: 14px; color: #a1a1a6; }
+    
+    .btn-stop {
+      background: #ff453a; color: white; border: none;
+      padding: 12px 20px; border-radius: 14px; font-weight: bold; font-size: 15px;
+    }
+
+    /* Icona Autovelox */
+    .speedcam-icon {
+      background: #ff3b30;
       color: white;
-      border: 1px solid rgba(255,255,255,0.15);
+      font-weight: bold;
+      border-radius: 50%;
+      width: 26px;
+      height: 26px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 22px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-      cursor: pointer;
+      font-size: 12px;
+      border: 2px solid white;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
     }
 
-    /* Nasconde il pannello di testo del percorso di default */
-    .leaflet-routing-container {
-      display: none !important;
+    /* Vista 3D */
+    .perspective-3d #map {
+      transform: perspective(600px) rotateX(45deg) scale(1.15);
+      transform-origin: center bottom;
+      transition: transform 0.5s ease;
     }
+
+    .leaflet-routing-container { display: none !important; }
   </style>
 </head>
-<body>
+<body id="bodyContainer">
 
-  <!-- Barra di ricerca -->
-  <div class="search-box">
+  <!-- Barra di Ricerca -->
+  <div class="search-box" id="searchBox">
     <input type="text" id="searchInput" placeholder="Cerca bar, ristoranti, indirizzi..." />
     <button onclick="searchPlace()">Cerca</button>
+  </div>
+
+  <!-- Opzioni Filtro Percorso -->
+  <div class="route-options" id="routeOptions">
+    <input type="checkbox" id="avoidTolls" onchange="updateRouteIfNavigating()" />
+    <label for="avoidTolls">Evita autostrade e pedaggi</label>
   </div>
 
   <!-- Contenitore Mappa -->
   <div id="map"></div>
 
-  <!-- Scheda del locale (Bottom Sheet) -->
+  <!-- Controlli Fluttuanti -->
+  <div class="map-controls" id="mapControls">
+    <button class="btn-ctrl" id="btnSpeedCams" onclick="toggleSpeedCams()" title="Autovelox">📷</button>
+    <button class="btn-ctrl" id="btnTraffic" onclick="toggleTraffic()" title="Traffico">🚥</button>
+    <button class="btn-ctrl" id="btnPerspective" onclick="togglePerspective()" title="Vista 3D">🧭</button>
+    <button class="btn-ctrl" onclick="locateUser(true)" title="La mia posizione">📍</button>
+  </div>
+
+  <!-- Scheda del locale -->
   <div class="place-card" id="placeCard">
     <div class="place-title" id="cardTitle">Nome Locale</div>
     <div class="place-sub" id="cardSub">Indirizzo e dettagli</div>
-    <button class="btn-route" onclick="startNavigation()">Avvia Navigazione Vocale</button>
+    <button class="btn-route" onclick="startNavigation()">Avvia Navigazione</button>
   </div>
 
-  <!-- Pulsante Posizione -->
-  <div class="fab-container">
-    <button class="fab" onclick="locateUser()">📍</button>
+  <!-- Pannello Navigazione Attiva -->
+  <div class="nav-bar" id="navBar">
+    <div class="nav-info">
+      <div class="nav-time" id="navTime">-- min</div>
+      <div class="nav-details" id="navDetails">Calcolo percorso...</div>
+    </div>
+    <button class="btn-stop" onclick="stopNavigation()">Esci</button>
   </div>
 
-  <!-- Librerie Leaflet e Routing -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
   <script>
-    // Inizializza mappa centrata sull'Italia
     const map = L.map('map', { zoomControl: false }).setView([41.9028, 12.4964], 6);
     
-    // Mappa pulita basata su OpenStreetMap (Senza richieste di API Key)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
+      attribution: '&copy; OpenStreetMap'
     }).addTo(map);
+
+    let trafficLayer = L.tileLayer('https://{s}.freeway-traffic.com/tiles/traffic/{z}/{x}/{y}.png', {
+      maxZoom: 18, opacity: 0.75
+    });
+
+    let speedCamLayerGroup = L.layerGroup().addTo(map);
 
     let userLocation = null;
     let targetLocation = null;
     let routingControl = null;
+    let userMarker = null;
+    let watchId = null;
+    let isNavigating = false;
+    let isTrafficOn = false;
+    let showSpeedCams = true;
+    let speedCamsList = [];
+    let lastWarnedCamId = null;
 
-    // Sintesi vocale (Siri su iOS, Google su Android)
     function speak(text) {
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
@@ -202,39 +288,136 @@
       }
     }
 
-    // Localizzazione GPS utente
-    function locateUser() {
-      if (!navigator.geolocation) {
-        alert("La geolocalizzazione non è supportata dal dispositivo.");
-        return;
+    // Caricamento Autovelox nelle vicinanze da OpenStreetMap (Overpass API)
+    async function loadNearbySpeedCams(lat, lon) {
+      if (!showSpeedCams) return;
+
+      const query = `[out:json];node["highway"="speed_camera"](around:15000,${lat},${lon});out;`;
+      const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        speedCamLayerGroup.clearLayers();
+        speedCamsList = [];
+
+        if (data && data.elements) {
+          data.elements.forEach(cam => {
+            speedCamsList.push({ id: cam.id, lat: cam.lat, lon: cam.lon });
+            
+            const camIcon = L.divIcon({
+              className: 'custom-div-icon',
+              html: "<div class='speedcam-icon'>📷</div>",
+              iconSize: [26, 26],
+              iconAnchor: [13, 13]
+            });
+
+            L.marker([cam.lat, cam.lon], { icon: camIcon }).addTo(speedCamLayerGroup);
+          });
+        }
+      } catch (e) {
+        console.log("Errore caricamento autovelox");
       }
+    }
 
-      navigator.geolocation.getCurrentPosition(pos => {
-        userLocation = [pos.coords.latitude, pos.coords.longitude];
-        map.flyTo(userLocation, 15);
+    // Toggle Visualizzazione Autovelox
+    function toggleSpeedCams() {
+      showSpeedCams = !showSpeedCams;
+      const btn = document.getElementById('btnSpeedCams');
+      if (showSpeedCams) {
+        speedCamLayerGroup.addTo(map);
+        btn.classList.add('active');
+        if (userLocation) loadNearbySpeedCams(userLocation[0], userLocation[1]);
+      } else {
+        map.removeLayer(speedCamLayerGroup);
+        btn.classList.remove('active');
+      }
+    }
 
-        L.circleMarker(userLocation, {
-          radius: 8,
-          fillColor: '#0A84FF',
-          color: '#ffffff',
-          weight: 3,
-          fillOpacity: 0.9
-        }).addTo(map);
-      }, () => {
-        alert("Attiva i permessi di geolocalizzazione per individuare la tua posizione.");
+    function toggleTraffic() {
+      isTrafficOn = !isTrafficOn;
+      const btn = document.getElementById('btnTraffic');
+      if (isTrafficOn) {
+        map.addLayer(trafficLayer);
+        btn.classList.add('active');
+      } else {
+        map.removeLayer(trafficLayer);
+        btn.classList.remove('active');
+      }
+    }
+
+    function togglePerspective() {
+      document.getElementById('bodyContainer').classList.toggle('perspective-3d');
+      document.getElementById('btnPerspective').classList.toggle('active');
+    }
+
+    // Calcolo distanza tra due punti in metri
+    function getDistanceMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371e3;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    // Controllo vicinanza Autovelox in tempo reale
+    function checkProximitySpeedCams(lat, lon) {
+      if (!isNavigating || !showSpeedCams) return;
+
+      speedCamsList.forEach(cam => {
+        const dist = getDistanceMeters(lat, lon, cam.lat, cam.lon);
+        if (dist <= 400 && lastWarnedCamId !== cam.id) {
+          lastWarnedCamId = cam.id;
+          speak("Attenzione! Autovelox a 400 metri.");
+        }
       });
     }
 
-    // Ricerca dei luoghi tramite Proxy
+    // Tracciamento Posizione
+    function locateUser(centerMap = false) {
+      if (!navigator.geolocation) return;
+
+      if (watchId) navigator.geolocation.clearWatch(watchId);
+
+      watchId = navigator.geolocation.watchPosition(pos => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        userLocation = [lat, lng];
+
+        if (!userMarker) {
+          userMarker = L.circleMarker(userLocation, {
+            radius: 9, fillColor: '#0A84FF', color: '#ffffff', weight: 3, fillOpacity: 1
+          }).addTo(map);
+          loadNearbySpeedCams(lat, lng);
+        } else {
+          userMarker.setLatLng(userLocation);
+        }
+
+        if (isNavigating || centerMap) {
+          map.panTo(userLocation, { animate: true });
+        }
+
+        checkProximitySpeedCams(lat, lng);
+      }, err => console.log(err), {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 10000
+      });
+    }
+
+    // Ricerca Luoghi
     async function searchPlace() {
       const query = document.getElementById('searchInput').value;
-      if(!query) return;
+      if (!query) return;
 
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
         const data = await res.json();
 
-        if(data && data.length > 0) {
+        if (data && data.length > 0) {
           const place = data[0];
           targetLocation = [parseFloat(place.lat), parseFloat(place.lon)];
           
@@ -252,41 +435,77 @@
       }
     }
 
-    // Avvio del percorso con indicazioni vocali
+    // Ricalcolo percorso se si spunta "Evita Pedaggi"
+    function updateRouteIfNavigating() {
+      if (isNavigating) startNavigation();
+    }
+
+    // Avvio Navigazione
     function startNavigation() {
-      if(!userLocation) {
-        alert("Attiva prima il GPS toccando il pulsante 📍");
+      if (!userLocation) {
+        alert("Attiva prima il GPS della tua posizione.");
         return;
       }
 
+      isNavigating = true;
+      document.getElementById('placeCard').classList.remove('active');
+      document.getElementById('searchBox').style.display = 'none';
+      document.getElementById('routeOptions').style.display = 'none';
+      document.getElementById('navBar').classList.add('active');
+      document.getElementById('mapControls').style.bottom = '110px';
+      document.getElementById('bodyContainer').classList.add('perspective-3d');
+
       if (routingControl) map.removeControl(routingControl);
+
+      const avoidTolls = document.getElementById('avoidTolls').checked;
+      
+      // Imposta il router con o senza autostrade/pedaggi
+      const routerOptions = {
+        serviceUrl: 'https://router.project-osrm.org/route/v1',
+        language: 'it'
+      };
+
+      if (avoidTolls) {
+        routerOptions.exclude = 'toll';
+      }
 
       routingControl = L.Routing.control({
         waypoints: [
           L.latLng(userLocation[0], userLocation[1]),
           L.latLng(targetLocation[0], targetLocation[1])
         ],
-        router: L.Routing.osrmv1({
-          serviceUrl: 'https://router.project-osrm.org/route/v1',
-          language: 'it'
-        }),
-        lineOptions: {
-          styles: [{ color: '#30d158', opacity: 0.85, weight: 6 }]
-        },
+        router: L.Routing.osrmv1(routerOptions),
+        lineOptions: { styles: [{ color: '#30d158', opacity: 0.9, weight: 8 }] },
         createMarker: () => null
       }).addTo(map);
 
       routingControl.on('routesfound', (e) => {
-        const instructions = e.routes[0].instructions;
-        if(instructions && instructions.length > 0) {
-          speak("Navigazione avviata. " + instructions[0].text);
+        const route = e.routes[0];
+        const mins = Math.round(route.summary.totalTime / 60);
+        const km = (route.summary.totalDistance / 1000).toFixed(1);
+
+        document.getElementById('navTime').innerText = `${mins} min`;
+        document.getElementById('navDetails').innerText = `${km} km ${avoidTolls ? '• No pedaggi' : '• Percorso standard'}`;
+
+        if (route.instructions && route.instructions.length > 0) {
+          speak("Navigazione avviata. " + route.instructions[0].text);
         }
       });
-
-      document.getElementById('placeCard').classList.remove('active');
     }
 
-    // Avvia geolocalizzazione all'apertura
+    function stopNavigation() {
+      isNavigating = false;
+      document.getElementById('navBar').classList.remove('active');
+      document.getElementById('searchBox').style.display = 'flex';
+      document.getElementById('routeOptions').style.display = 'flex';
+      document.getElementById('mapControls').style.bottom = '32px';
+      document.getElementById('bodyContainer').classList.remove('perspective-3d');
+
+      if (routingControl) map.removeControl(routingControl);
+      speak("Navigazione terminata.");
+    }
+
+    document.getElementById('btnSpeedCams').classList.add('active');
     locateUser();
   </script>
 </body>
