@@ -30,10 +30,10 @@
       overflow: hidden;
     }
 
-    /* Barra di ricerca superiore */
+    /* Barra di ricerca in basso */
     .search-box {
       position: absolute;
-      top: 48px;
+      bottom: 32px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 1000;
@@ -70,35 +70,35 @@
       cursor: pointer;
     }
 
-    /* Opzioni Percorso (Evita Pedaggi) */
+    /* Opzioni Percorso (Evita Pedaggi) in alto a destra */
     .route-options {
       position: absolute;
-      top: 108px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 999;
+      top: 48px;
+      right: 16px;
+      z-index: 1000;
       background: rgba(28, 28, 30, 0.92);
       backdrop-filter: blur(15px);
-      padding: 8px 16px;
-      border-radius: 20px;
+      padding: 8px 14px;
+      border-radius: 18px;
       border: 1px solid rgba(255,255,255,0.1);
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       color: #fff;
-      font-size: 14px;
+      font-size: 13px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
     }
 
     .route-options input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
       accent-color: #0A84FF;
     }
 
     /* Controlli Fluttuanti Laterali */
     .map-controls {
       position: absolute;
-      bottom: 100px;
+      bottom: 105px;
       right: 16px;
       z-index: 1000;
       display: flex;
@@ -201,18 +201,12 @@
     .leaflet-routing-container { display: none !important; }
   </style>
 </head>
-<body id="bodyContainer">
+<body>
 
-  <!-- Barra di Ricerca -->
-  <div class="search-box" id="searchBox">
-    <input type="text" id="searchInput" placeholder="Cerca bar, ristoranti, indirizzi..." />
-    <button onclick="searchPlace()">Cerca</button>
-  </div>
-
-  <!-- Opzioni Filtro Percorso -->
+  <!-- Opzioni Filtro Percorso in alto a destra -->
   <div class="route-options" id="routeOptions">
     <input type="checkbox" id="avoidTolls" onchange="updateRouteIfNavigating()" />
-    <label for="avoidTolls">Evita autostrade e pedaggi</label>
+    <label for="avoidTolls">No pedaggi</label>
   </div>
 
   <!-- Contenitore Mappa -->
@@ -223,6 +217,12 @@
     <button class="btn-ctrl" id="btnSpeedCams" onclick="toggleSpeedCams()" title="Autovelox">📷</button>
     <button class="btn-ctrl" id="btnTraffic" onclick="toggleTraffic()" title="Traffico">🚥</button>
     <button class="btn-ctrl" onclick="locateUser(true)" title="La mia posizione">📍</button>
+  </div>
+
+  <!-- Barra di Ricerca in basso -->
+  <div class="search-box" id="searchBox">
+    <input type="text" id="searchInput" placeholder="Cerca bar, ristoranti, indirizzi..." />
+    <button onclick="searchPlace()">Cerca</button>
   </div>
 
   <!-- Scheda del locale -->
@@ -247,11 +247,10 @@
   <script>
     const map = L.map('map', { zoomControl: false }).setView([41.9028, 12.4964], 6);
     
-    // Mappa scura stile navigatore moderno (CartoDB Dark Matter)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    // Mappa scura OpenStreetMap basata su tiles libere senza API Key
+    L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      subdomains: 'abcd',
-      attribution: '&copy; OpenStreetMap &copy; CARTO'
+      attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
     let trafficLayer = L.tileLayer('https://{s}.freeway-traffic.com/tiles/traffic/{z}/{x}/{y}.png', {
@@ -461,7 +460,7 @@
         const km = (route.summary.totalDistance / 1000).toFixed(1);
 
         document.getElementById('navTime').innerText = `${mins} min`;
-        document.getElementById('navDetails').innerText = `${km} km ${avoidTolls ? '• No pedaggi' : '• Percorso standard'}`;
+        document.getElementById('navDetails').innerText = `${km} km ${avoidTolls ? '• No pedaggi' : '• Standard'}`;
 
         if (route.instructions && route.instructions.length > 0) {
           speak("Navigazione avviata. " + route.instructions[0].text);
