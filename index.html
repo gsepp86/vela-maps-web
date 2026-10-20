@@ -29,7 +29,7 @@
       overflow: hidden;
     }
 
-    /* Option No Pedaggi in alto a destra */
+    /* Selettore Tipo di Percorso in alto a destra */
     .route-options {
       position: absolute;
       top: 48px;
@@ -38,21 +38,25 @@
       background: rgba(30, 30, 35, 0.92);
       backdrop-filter: blur(15px);
       -webkit-backdrop-filter: blur(15px);
-      padding: 8px 14px;
+      padding: 10px 14px;
       border-radius: 18px;
       border: 1px solid rgba(255,255,255,0.15);
       display: flex;
-      align-items: center;
-      gap: 8px;
+      flex-direction: column;
+      gap: 6px;
       color: #fff;
       font-size: 13px;
       box-shadow: 0 4px 16px rgba(0,0,0,0.4);
     }
 
-    .route-options input[type="checkbox"] {
-      width: 16px;
-      height: 16px;
-      accent-color: #0A84FF;
+    .route-options select {
+      background: rgba(20, 20, 25, 0.9);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 6px 10px;
+      border-radius: 10px;
+      font-size: 13px;
+      outline: none;
     }
 
     /* Barra di ricerca in basso */
@@ -187,10 +191,14 @@
 </head>
 <body>
 
-  <!-- Filtro No Pedaggi in Alto a Destra -->
+  <!-- Opzioni Percorso in Alto a Destra -->
   <div class="route-options" id="routeOptions">
-    <input type="checkbox" id="avoidTolls" onchange="updateRouteIfNavigating()" />
-    <label for="avoidTolls">No pedaggi</label>
+    <label for="routeType">Tipo percorso:</label>
+    <select id="routeType" onchange="updateRouteIfNavigating()">
+      <option value="fastest">Più veloce</option>
+      <option value="shortest">Più breve</option>
+      <option value="notolls">Senza pedaggi (No autostrada)</option>
+    </select>
   </div>
 
   <!-- Contenitore Mappa 3D -->
@@ -230,18 +238,18 @@
   <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
 
   <script>
-    // Stile elegante e bilanciato (non troppo nero, ben leggibile)
+    // Stile Raster OpenStreetMap pulito e gratuito (Zero API Key richieste)
     const mapStyle = {
       "version": 8,
       "sources": {
         "osm-tiles": {
           "type": "raster",
           "tiles": [
-            "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png",
-            "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png"
+            "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+            "https://b.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png"
           ],
           "tileSize": 256,
-          "attribution": "&copy; OpenStreetMap &copy; CARTO"
+          "attribution": "&copy; OpenStreetMap contributors"
         },
         "traffic-tiles": {
           "type": "raster",
@@ -279,6 +287,7 @@
     let targetMarker = null;
     let isTrafficOn = false;
     let isGyroActive = false;
+    let lastBearing = 0;
 
     function speak(text) {
       if ('speechSynthesis' in window) {
@@ -313,7 +322,7 @@
       }
     }
 
-    // Attivazione Giroscopio / Bussola Smartphone
+    // Giroscopio / Bussola con filtro di smorzamento per evitare sfarfallii
     function toggleCompassGyro() {
       isGyroActive = !isGyroActive;
       const btn = document.getElementById('btnCompass');
@@ -345,11 +354,14 @@
       if (!isGyroActive) return;
       let alpha = e.alpha || e.webkitCompassHeading;
       if (alpha !== undefined && alpha !== null) {
-        map.setBearing(alpha);
+        // Smoothing del movimento per renderlo fluido e non troppo sensibile
+        let smoothedBearing = lastBearing + (alpha - lastBearing) * 0.15;
+        lastBearing = smoothedBearing;
+        map.setBearing(smoothedBearing);
       }
     }
 
-    // Localizzazione e Tracciamento GPS
+    // Localizzazione GPS
     function locateUser(centerMap = false) {
       if (!navigator.geolocation) return;
 
@@ -376,12 +388,13 @@
         }
 
         if (isNavigating) {
+          let moveBearing = (heading !== null && heading !== undefined) ? heading : map.getBearing();
           map.easeTo({
             center: userLocation,
             zoom: 17.5,
-            pitch: 60, // Prospettiva 3D
-            bearing: (heading !== null && heading !== undefined) ? heading : map.getBearing(),
-            duration: 1000
+            pitch: 60,
+            bearing: moveBearing,
+            duration: 800
           });
         } else if (centerMap) {
           map.flyTo({ center: userLocation, zoom: 15, pitch: 0 });
@@ -393,7 +406,7 @@
       });
     }
 
-    // Ricerca Indirizzi
+    // Ricerca Indirizzo
     async function searchPlace() {
       const query = document.getElementById('searchInput').value;
       if (!query) return;
@@ -424,7 +437,7 @@
       }
     }
 
-    // Avvio Navigazione 3D
+    // Avvio Navigazione con opzioni di percorso (Veloce, Breve, No Pedaggi)
     async function startNavigation() {
       if (!userLocation) {
         alert("Attiva prima il GPS toccando il pulsante 📍");
@@ -438,22 +451,24 @@
       document.getElementById('navBar').classList.add('active');
       document.getElementById('mapControls').style.bottom = '110px';
 
-      // Attiva giroscopio se disponibile
-      enableGyro();
-      isGyroActive = true;
-      document.getElementById('btnCompass').classList.add('active');
-
       map.flyTo({
         center: userLocation,
         zoom: 17.5,
-        pitch: 60, // Modalità 3D
+        pitch: 60,
         duration: 1500
       });
 
-      const avoidTolls = document.getElementById('avoidTolls').checked;
-      
+      const routeType = document.getElementById('routeType').value;
+      let url = `https://router.project-osrm.org/route/v1/driving/${userLocation[0]},${userLocation[1]};${targetLocation[0]},${targetLocation[1]}?overview=full&geometries=geojson`;
+
+      if (routeType === 'shortest') {
+        url += `&annotations=distance`;
+      } else if (routeType === 'notolls') {
+        url += `&exclude=toll`;
+      }
+
       try {
-        const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${userLocation[0]},${userLocation[1]};${targetLocation[0]},${targetLocation[1]}?overview=full&geometries=geojson${avoidTolls ? '&exclude=toll' : ''}`);
+        const res = await fetch(url);
         const data = await res.json();
 
         if (data.routes && data.routes.length > 0) {
@@ -461,8 +476,12 @@
           const mins = Math.round(route.duration / 60);
           const km = (route.distance / 1000).toFixed(1);
 
+          let modeText = "Veloce";
+          if (routeType === 'shortest') modeText = "Più breve";
+          if (routeType === 'notolls') modeText = "Senza pedaggi";
+
           document.getElementById('navTime').innerText = `${mins} min`;
-          document.getElementById('navDetails').innerText = `${km} km ${avoidTolls ? '• No pedaggi' : '• Percorso veloce'}`;
+          document.getElementById('navDetails').innerText = `${km} km • ${modeText}`;
 
           const routeGeoJSON = {
             'type': 'Feature',
@@ -482,7 +501,7 @@
             });
           }
 
-          speak(`Navigazione 3D avviata. Distanza ${km} chilometri.`);
+          speak(`Navigazione avviata. Percorso ${modeText}, distanza ${km} chilometri.`);
         }
       } catch (e) {
         console.log("Errore calcolo percorso");
