@@ -30,7 +30,7 @@ body[data-mode=search] #searchBox{display:flex}
 
 /* Controlli */
 .controls{position:fixed;z-index:1000;right:14px;bottom:calc(100px + var(--bot));display:flex;flex-direction:column;gap:10px;transition:bottom .3s}
-body[data-mode=place] .controls{bottom:calc(250px + var(--bot))}
+body[data-mode=place] .controls{bottom:calc(310px + var(--bot))}
 body[data-mode=nav] .controls{bottom:calc(120px + var(--bot))}
 .btn{width:46px;height:46px;border-radius:50%;font-size:19px;background:var(--glass);border:1px solid var(--line);box-shadow:0 4px 16px rgba(0,0,0,.4)}
 .btn.active{background:var(--blue);border-color:var(--blue)}
@@ -45,6 +45,7 @@ body[data-mode=place] #placeCard,body[data-mode=nav] #navBar{transform:none}
 .row select{background:#2c2c2e;color:#fff;border:1px solid var(--line);padding:8px 10px;border-radius:10px;font-size:14px}
 #routeInfo{font-weight:600;color:var(--green)}
 .go{width:100%;background:var(--green);color:#000;font-weight:700;padding:14px;border-radius:14px;font-size:16px}
+.sim{width:100%;margin-top:8px;background:#2c2c2e;padding:11px;border-radius:14px;font-size:14px}
 #navBar{display:flex;align-items:center;justify-content:space-between}
 #navTime{font-size:26px;font-weight:700;color:var(--green)}
 #navDetails{font-size:14px;color:var(--mut);margin-top:2px}
@@ -99,6 +100,7 @@ body[data-mode=nav] #turn{display:flex}
     <div id="routeInfo"></div>
   </div>
   <button class="go" onclick="startNavigation()">Avvia navigazione 3D</button>
+  <button class="sim" onclick="simulate()">Simula il percorso (prova voce e bussola)</button>
 </div>
 
 <div id="navBar" class="sheet">
@@ -121,12 +123,12 @@ const CONFIG = {
 const $ = id => document.getElementById(id);
 const EMPTY = { type: 'FeatureCollection', features: [] };
 const ARROWS = {4:'⚑',5:'⚑',6:'⚑',9:'↗',10:'→',11:'↘',12:'↷',13:'↶',14:'↙',15:'←',16:'↖',18:'↗',19:'↖',20:'↗',21:'↖',23:'↗',24:'↖',26:'⟳',27:'⟳'};
-let mode = 'search', user = null, gpsHeading = null, speedMs = 0, compassH = null, watchId = null;
+let mode = 'search', user = null, gpsHeading = null, speedMs = 0, devH = null, watchId = null;
 let marker = null, destMarker = null, dest = null, route = null, reqId = 0;
-let follow = true, voiceOn = true, camsOn = true, trafficOn = false, compassOn = false;
+let follow = true, voiceOn = true, camsOn = true, trafficOn = false, headingUp = false, simOn = false, simTimer = null;
 let stepIdx = 1, announced = 0, minD = Infinity, offCount = 0, navDone = false, noReroute = 0, rerouting = false;
 let camList = [], camBB = null, camBusy = false, camRetry = 0, spokenCams = new Set();
-let wl = null, toastT, lastOrient = 0;
+let wl = null, toastT;
 
 /* ===== Utilità ===== */
 const rad = d => d * Math.PI / 180;
@@ -171,16 +173,36 @@ function decodePolyline(s, prec = 6) {
 }
 
 /* ===== Voce ===== */
-function speak(t) {
-  if (!voiceOn || !t || !('speechSynthesis' in window)) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(t); u.lang = 'it-IT';
-  const v = speechSynthesis.getVoices().find(v => v.lang.replace('_', '-') === 'it-IT'); if (v) u.voice = v;
-  speechSynthesis.speak(u);
+let itVoice = null, curUtt = null, speakT = 0;
+function pickVoice() {
+  if (!('speechSynthesis' in window)) return;
+  const vs = speechSynthesis.getVoices();
+  itVoice = vs.find(v => /^it[-_]IT$/i.test(v.lang) && v.localService) || vs.find(v => /^it/i.test(v.lang)) || null;
+}
+pickVoice();
+if ('speechSynthesis' in window) speechSynthesis.onvoiceschanged = pickVoice;
+function speak(text) {
+  if (!voiceOn || !text || !('speechSynthesis' in window)) return;
+  const go = () => {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'it-IT'; if (itVoice) u.voice = itVoice;
+    u.onerror = e => { if (e.error !== 'interrupted' && e.error !== 'canceled') toast('Voce: ' + e.error); };
+    curUtt = u; // tiene un riferimento: senza, Chrome può interrompere la voce a metà
+    speechSynthesis.resume();
+    speechSynthesis.speak(u);
+  };
+  // cancel() seguito subito da speak() viene ignorato da iOS/Chrome: si aspetta un attimo,
+  // e un messaggio appena partito non viene tagliato ma messo in coda
+  const busy = speechSynthesis.speaking || speechSynthesis.pending, stale = Date.now() - speakT > 2500;
+  speakT = Date.now();
+  if (busy && stale) { speechSynthesis.cancel(); setTimeout(go, 120); } else go();
 }
 function toggleVoice() {
   voiceOn = !voiceOn; $('btnVoice').textContent = voiceOn ? '🔊' : '🔇';
-  if (!voiceOn && 'speechSynthesis' in window) speechSynthesis.cancel();
+  if (!('speechSynthesis' in window)) return toast('Il browser non supporta la sintesi vocale');
+  if (!voiceOn) return speechSynthesis.cancel();
+  pickVoice(); speak('Voce attiva.');
+  if (!itVoice) toast('Voce italiana non trovata: installala dalle impostazioni del telefono');
 }
 
 /* ===== Mappa ===== */
@@ -200,62 +222,93 @@ map.on('load', () => {
   map.addLayer({ id: 'cams', type: 'circle', source: 'cams', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 4, 17, 9], 'circle-color': '#ff453a', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
   loadCams();
 });
-map.on('moveend', loadCams);
+setInterval(loadCams, 2500);
 map.on('click', () => { $('results').style.display = 'none'; });
-['dragstart', 'zoomstart', 'rotatestart', 'pitchstart'].forEach(ev => map.on(ev, e => { if (e.originalEvent && mode === 'nav') setFollow(false); }));
+['dragstart', 'zoomstart', 'rotatestart', 'pitchstart'].forEach(ev => map.on(ev, e => { if (!e.originalEvent) return; if (mode === 'nav') setFollow(false); else if (ev === 'rotatestart') setHeadingUp(false); }));
 
 function setFollow(v) { follow = v; $('btnLoc').classList.toggle('active', v); }
 function setMode(m) { mode = m; document.body.dataset.mode = m; $('results').style.display = 'none'; }
 
-/* ===== GPS ===== */
+/* ===== GPS, bussola e camera ===== */
+let sensorOn = false, camB = 0, camPos = null, camZ = 14, camP = 0, camT = 0, mkH = null;
+// direzione corrente: rotta GPS se ci muoviamo, altrimenti bussola del telefono
+const curHeading = () => speedMs > 1.5 && gpsHeading != null ? gpsHeading : (devH ?? gpsHeading);
+
 function startGPS() {
   if (!navigator.geolocation) return toast('GPS non disponibile');
   if (watchId != null) return;
   watchId = navigator.geolocation.watchPosition(onPos, e => toast('GPS: ' + e.message), { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 });
 }
 function onPos(p) {
+  if (simOn && !p.sim) return; // durante la simulazione si ignora il GPS reale
   const c = p.coords, first = !user;
-  user = [c.longitude, c.latitude]; speedMs = c.speed || 0;
+  user = [c.longitude, c.latitude]; speedMs = Math.max(0, c.speed || 0);
   if (c.heading != null && !isNaN(c.heading) && speedMs > 1.5) gpsHeading = c.heading;
   if (!marker) {
     const el = document.createElement('div'); el.className = 'me'; el.innerHTML = '<i></i>';
     marker = new maplibregl.Marker({ element: el, rotationAlignment: 'map' }).setLngLat(user).addTo(map);
-  } else marker.setLngLat(user);
-  if (gpsHeading != null) { marker.setRotation(gpsHeading); marker.getElement().classList.add('h'); }
-  if (mode === 'nav') {
-    tickNav(user);
-    if (follow) map.easeTo({ center: user, zoom: 17, pitch: 60, bearing: navBearing(), offset: [0, innerHeight * .2], duration: 900, easing: t => t });
-  } else if (first && mode === 'search') map.flyTo({ center: user, zoom: 14 });
+  }
+  if (!(mode === 'nav' && follow)) marker.setLngLat(user); // in navigazione lo muove camLoop
+  if (mode === 'nav') tickNav(user);
+  else if (first && mode === 'search') map.flyTo({ center: user, zoom: 14 });
   else if (first && mode === 'place') previewRoute(true);
 }
-const navBearing = () => speedMs > 1.5 && gpsHeading != null ? gpsHeading : (compassH ?? gpsHeading ?? map.getBearing());
 function locate() {
   startGPS(); setFollow(true);
-  if (user) map.easeTo(mode === 'nav' ? { center: user, zoom: 17, pitch: 60, bearing: navBearing(), offset: [0, innerHeight * .2] } : { center: user, zoom: 15 });
+  if (user && mode !== 'nav') map.easeTo({ center: user, zoom: 15 });
 }
 
-/* ===== Bussola ===== */
+/* Bussola: iOS dà webkitCompassHeading; Android dà alpha/beta/gamma assoluti.
+   Telefono in verticale (supporto auto) = direzione del retro; orizzontale = direzione della parte alta. */
 function onOrient(e) {
-  const h = e.webkitCompassHeading != null ? e.webkitCompassHeading : (e.absolute && e.alpha != null ? 360 - e.alpha : null);
-  if (h == null) return;
-  compassH = compassH == null ? h : (compassH + angDiff(h, compassH) * .25 + 360) % 360;
-  const now = performance.now();
-  if (now - lastOrient < 80 || (mode === 'nav' && speedMs > 1.5)) return;
-  lastOrient = now; map.setBearing(compassH);
-}
-async function toggleCompass() {
-  if (!compassOn) {
-    try {
-      if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission && await DeviceOrientationEvent.requestPermission() !== 'granted') return toast('Permesso bussola negato');
-    } catch (e) { return toast('Bussola non disponibile'); }
-    addEventListener('deviceorientation', onOrient); addEventListener('deviceorientationabsolute', onOrient);
-    compassOn = true;
-  } else {
-    removeEventListener('deviceorientation', onOrient); removeEventListener('deviceorientationabsolute', onOrient);
-    compassOn = false; compassH = null; map.easeTo({ bearing: 0 });
+  let h = null;
+  if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;
+  else if (e.absolute && e.alpha != null) {
+    const x = rad(e.beta || 0), y = rad(e.gamma || 0), z = rad(e.alpha);
+    const vx = -Math.cos(z) * Math.sin(y) - Math.sin(z) * Math.sin(x) * Math.cos(y);
+    const vy = -Math.sin(z) * Math.sin(y) + Math.cos(z) * Math.sin(x) * Math.cos(y);
+    h = Math.hypot(vx, vy) > .7 ? (Math.atan2(vx, vy) * 180 / Math.PI + 360) % 360
+                                : (360 - e.alpha + (screen.orientation?.angle || 0) + 360) % 360;
   }
-  $('btnCompass').classList.toggle('active', compassOn);
+  if (h != null) devH = devH == null ? h : (devH + angDiff(h, devH) * .3 + 360) % 360;
 }
+async function enableSensors() {
+  if (sensorOn) return true;
+  try {
+    if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission && await DeviceOrientationEvent.requestPermission() !== 'granted') {
+      toast('Permesso bussola negato: Impostazioni › Safari › Movimento e orientamento'); return false;
+    }
+  } catch (e) { toast('Bussola non disponibile'); return false; }
+  addEventListener('deviceorientation', onOrient); addEventListener('deviceorientationabsolute', onOrient);
+  sensorOn = true; return true;
+}
+function setHeadingUp(v) { headingUp = v; $('btnCompass').classList.toggle('active', v); }
+async function toggleCompass() { // mappa orientata nella direzione di marcia / nord in alto
+  if (!headingUp && !(await enableSensors()) && mode !== 'nav') return;
+  setHeadingUp(!headingUp);
+  if (!headingUp && mode !== 'nav') map.easeTo({ bearing: 0 });
+  if (headingUp) setTimeout(() => { if (headingUp && devH == null && speedMs < 1.5) toast('Il dispositivo non fornisce dati della bussola'); }, 2500);
+}
+
+/* Un solo ciclo di camera: evita che bussola e navigazione si contendano la mappa */
+function camLoop(t) {
+  requestAnimationFrame(camLoop);
+  const dt = Math.min(.1, (t - camT) / 1000) || .016; camT = t;
+  const h = curHeading();
+  if (marker && h != null && (mkH == null || Math.abs(angDiff(h, mkH)) > 1)) { mkH = h; marker.setRotation(h); marker.getElement().classList.add('h'); }
+  const navFollow = mode === 'nav' && follow && user, compassMode = mode !== 'nav' && headingUp && devH != null;
+  if (!navFollow && !compassMode) { camPos = null; camB = (map.getBearing() + 360) % 360; camZ = map.getZoom(); camP = map.getPitch(); return; }
+  const k = tau => 1 - Math.exp(-dt / tau);
+  const want = !headingUp ? 0 : mode === 'nav' ? (h ?? camB) : devH;
+  camB = (camB + angDiff(want, camB) * k(.25) + 360) % 360;
+  if (!navFollow) return map.setBearing(camB);
+  const c = camPos || [map.getCenter().lng, map.getCenter().lat];
+  camPos = [c[0] + (user[0] - c[0]) * k(.4), c[1] + (user[1] - c[1]) * k(.4)];
+  camZ += (17 - camZ) * k(.6); camP += (60 - camP) * k(.6);
+  marker?.setLngLat(camPos);
+  map.easeTo({ center: camPos, zoom: camZ, pitch: camP, bearing: camB, offset: [0, innerHeight * .2], duration: 0 });
+}
+requestAnimationFrame(camLoop);
 
 /* ===== Autovelox (OpenStreetMap / Overpass) ===== */
 async function loadCams() {
@@ -371,13 +424,11 @@ async function previewRoute(fit) {
 /* ===== Navigazione ===== */
 function startNavigation() {
   if (!route || !user) return toast('Percorso non ancora pronto');
-  if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } // sblocca la voce su iOS
-  setMode('nav'); setFollow(true);
+  setMode('nav'); setFollow(true); setHeadingUp(true); enableSensors();
   stepIdx = 1; announced = 0; minD = Infinity; offCount = 0; navDone = false; spokenCams = new Set();
   acquireWake();
   speak(`Navigazione avviata. ${route.steps[0]?.instruction || ''}`);
   tickNav(user);
-  map.easeTo({ center: user, zoom: 17, pitch: 60, bearing: navBearing(), offset: [0, innerHeight * .2], duration: 1500 });
 }
 function tickNav(pos) {
   if (!route || navDone) return;
@@ -421,8 +472,28 @@ function endTrip() {
   setMode('search'); route = null; dest = null; reqId++;
   destMarker?.remove(); destMarker = null;
   map.getSource('route')?.setData(EMPTY);
-  releaseWake(); setFollow(true);
+  releaseWake(); setFollow(true); setHeadingUp(false); clearInterval(simTimer); simOn = false;
   map.easeTo({ pitch: 0, bearing: 0, zoom: 14, ...(user ? { center: user } : {}) });
+}
+
+/* ===== Simulazione (per provare voce e bussola senza guidare) ===== */
+function simulate() {
+  if (!route) return toast('Percorso non ancora pronto');
+  const pts = route.shape; let i = 1, p = pts[0].slice();
+  simOn = true;
+  const fix = h => onPos({ sim: true, coords: { longitude: p[0], latitude: p[1], heading: h, speed: 16 } });
+  fix(bearing(p, pts[1])); startNavigation();
+  clearInterval(simTimer);
+  simTimer = setInterval(() => {
+    let step = 16; // metri al secondo (~58 km/h)
+    while (step > 0 && i < pts.length) {
+      const d = dist(p, pts[i]);
+      if (d <= step) { step -= d; p = pts[i].slice(); i++; }
+      else { const f = step / d; p = [p[0] + (pts[i][0] - p[0]) * f, p[1] + (pts[i][1] - p[1]) * f]; step = 0; }
+    }
+    if (i >= pts.length) clearInterval(simTimer);
+    fix(i < pts.length ? bearing(p, pts[i]) : null);
+  }, 1000);
 }
 
 /* ===== Schermo sempre acceso in navigazione ===== */
