@@ -6,14 +6,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Vela Maps" />
-  <title>Vela Maps Web</title>
+  <title>Vela Maps Web 3D</title>
   
   <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png" />
   <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png" />
   
-  <!-- Leaflet CSS & Routing CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+  <!-- MapLibre GL 3D Engine -->
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
   
   <style>
     * {
@@ -28,6 +27,32 @@
       width: 100vw;
       background-color: #121212;
       overflow: hidden;
+    }
+
+    /* Option No Pedaggi */
+    .route-options {
+      position: absolute;
+      top: 48px;
+      right: 16px;
+      z-index: 1000;
+      background: rgba(28, 28, 30, 0.92);
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      padding: 8px 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.12);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #fff;
+      font-size: 13px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+
+    .route-options input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #0A84FF;
     }
 
     /* Barra di ricerca in basso */
@@ -47,6 +72,7 @@
       display: flex;
       padding: 6px 10px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      transition: all 0.3s ease;
     }
 
     .search-box input {
@@ -70,31 +96,6 @@
       cursor: pointer;
     }
 
-    /* Opzioni Percorso (Evita Pedaggi) in alto a destra */
-    .route-options {
-      position: absolute;
-      top: 48px;
-      right: 16px;
-      z-index: 1000;
-      background: rgba(28, 28, 30, 0.92);
-      backdrop-filter: blur(15px);
-      padding: 8px 14px;
-      border-radius: 18px;
-      border: 1px solid rgba(255,255,255,0.1);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: #fff;
-      font-size: 13px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-    }
-
-    .route-options input[type="checkbox"] {
-      width: 16px;
-      height: 16px;
-      accent-color: #0A84FF;
-    }
-
     /* Controlli Fluttuanti Laterali */
     .map-controls {
       position: absolute;
@@ -104,6 +105,7 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
+      transition: all 0.3s ease;
     }
 
     .btn-ctrl {
@@ -127,7 +129,7 @@
       border-color: #0A84FF;
     }
 
-    /* Bottom Sheet del Locale */
+    /* Card Dettagli Locale */
     .place-card {
       position: absolute;
       bottom: -320px;
@@ -153,7 +155,7 @@
       border: none; font-size: 16px; cursor: pointer;
     }
 
-    /* Pannello Navigazione Attiva */
+    /* Pannello Guida Navigazione Attiva Stile Google Maps */
     .nav-bar {
       position: absolute;
       bottom: -150px;
@@ -161,7 +163,7 @@
       z-index: 1002;
       background: #1c1c1e;
       color: #fff;
-      padding: 20px;
+      padding: 20px 24px;
       border-top-left-radius: 24px;
       border-top-right-radius: 24px;
       display: flex;
@@ -173,103 +175,75 @@
     }
 
     .nav-bar.active { bottom: 0; }
-    .nav-info { display: flex; flex-direction: column; }
-    .nav-time { font-size: 24px; font-weight: bold; color: #30d158; }
-    .nav-details { font-size: 14px; color: #a1a1a6; }
+    .nav-time { font-size: 26px; font-weight: bold; color: #30d158; }
+    .nav-details { font-size: 14px; color: #a1a1a6; margin-top: 2px; }
     
     .btn-stop {
       background: #ff453a; color: white; border: none;
-      padding: 12px 20px; border-radius: 14px; font-weight: bold; font-size: 15px;
+      padding: 12px 22px; border-radius: 16px; font-weight: bold; font-size: 16px;
+      cursor: pointer;
     }
-
-    /* Icona Autovelox */
-    .speedcam-icon {
-      background: #ff3b30;
-      color: white;
-      font-weight: bold;
-      border-radius: 50%;
-      width: 26px;
-      height: 26px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      border: 2px solid white;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
-    }
-
-    .leaflet-routing-container { display: none !important; }
   </style>
 </head>
 <body>
 
-  <!-- Opzioni Filtro Percorso -->
+  <!-- Filtro No Pedaggi in Alto a Destra -->
   <div class="route-options" id="routeOptions">
     <input type="checkbox" id="avoidTolls" onchange="updateRouteIfNavigating()" />
     <label for="avoidTolls">No pedaggi</label>
   </div>
 
-  <!-- Contenitore Mappa -->
+  <!-- Contenitore Mappa Vector 3D -->
   <div id="map"></div>
 
   <!-- Controlli Fluttuanti -->
   <div class="map-controls" id="mapControls">
-    <button class="btn-ctrl" id="btnSpeedCams" onclick="toggleSpeedCams()" title="Autovelox">📷</button>
-    <button class="btn-ctrl" id="btnTraffic" onclick="toggleTraffic()" title="Traffico">🚥</button>
-    <button class="btn-ctrl" id="btn3D" onclick="toggle3DMode()" title="Vista 3D / Giroscopio">🧭</button>
+    <button class="btn-ctrl active" id="btnSpeedCams" onclick="toggleSpeedCams()" title="Autovelox (📷)">📷</button>
     <button class="btn-ctrl" onclick="locateUser(true)" title="La mia posizione">📍</button>
   </div>
 
-  <!-- Barra di Ricerca in basso -->
+  <!-- Barra di Ricerca in Basso -->
   <div class="search-box" id="searchBox">
     <input type="text" id="searchInput" placeholder="Cerca bar, ristoranti, indirizzi..." />
     <button onclick="searchPlace()">Cerca</button>
   </div>
 
-  <!-- Scheda del locale -->
+  <!-- Scheda Locale -->
   <div class="place-card" id="placeCard">
     <div class="place-title" id="cardTitle">Nome Locale</div>
     <div class="place-sub" id="cardSub">Indirizzo e dettagli</div>
-    <button class="btn-route" onclick="startNavigation()">Avvia Navigazione</button>
+    <button class="btn-route" onclick="startNavigation()">Avvia Navigazione 3D</button>
   </div>
 
-  <!-- Pannello Navigazione Attiva -->
+  <!-- Barra Guida Attiva -->
   <div class="nav-bar" id="navBar">
-    <div class="nav-info">
+    <div>
       <div class="nav-time" id="navTime">-- min</div>
       <div class="nav-details" id="navDetails">Calcolo percorso...</div>
     </div>
     <button class="btn-stop" onclick="stopNavigation()">Esci</button>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+  <!-- Engine MapLibre GL -->
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
 
   <script>
-    const map = L.map('map', { zoomControl: false }).setView([41.9028, 12.4964], 6);
-    
-    L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-
-    let trafficLayer = L.tileLayer('https://{s}.freeway-traffic.com/tiles/traffic/{z}/{x}/{y}.png', {
-      maxZoom: 18, opacity: 0.75
+    // Inizializzazione Mappa 3D Vettoriale Scura
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+      center: [12.4964, 41.9028],
+      zoom: 6,
+      pitch: 0, // Mappa piatta di default
+      bearing: 0
     });
-
-    let speedCamLayerGroup = L.layerGroup().addTo(map);
 
     let userLocation = null;
     let targetLocation = null;
-    let routingControl = null;
-    let userMarker = null;
-    let watchId = null;
     let isNavigating = false;
-    let isTrafficOn = false;
-    let showSpeedCams = true;
-    let speedCamsList = [];
-    let lastWarnedCamId = null;
-    let is3DActive = false;
+    let watchId = null;
+    let userMarker = null;
+    let targetMarker = null;
 
     function speak(text) {
       if ('speechSynthesis' in window) {
@@ -281,126 +255,7 @@
       }
     }
 
-    async function loadNearbySpeedCams(lat, lon) {
-      if (!showSpeedCams) return;
-
-      const query = `[out:json];node["highway"="speed_camera"](around:15000,${lat},${lon});out;`;
-      const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-
-      try {
-        const res = await fetch(url);
-        const data = await res.json();
-        
-        speedCamLayerGroup.clearLayers();
-        speedCamsList = [];
-
-        if (data && data.elements) {
-          data.elements.forEach(cam => {
-            speedCamsList.push({ id: cam.id, lat: cam.lat, lon: cam.lon });
-            
-            const camIcon = L.divIcon({
-              className: 'custom-div-icon',
-              html: "<div class='speedcam-icon'>📷</div>",
-              iconSize: [26, 26],
-              iconAnchor: [13, 13]
-            });
-
-            L.marker([cam.lat, cam.lon], { icon: camIcon }).addTo(speedCamLayerGroup);
-          });
-        }
-      } catch (e) {
-        console.log("Errore caricamento autovelox");
-      }
-    }
-
-    function toggleSpeedCams() {
-      showSpeedCams = !showSpeedCams;
-      const btn = document.getElementById('btnSpeedCams');
-      if (showSpeedCams) {
-        speedCamLayerGroup.addTo(map);
-        btn.classList.add('active');
-        if (userLocation) loadNearbySpeedCams(userLocation[0], userLocation[1]);
-      } else {
-        map.removeLayer(speedCamLayerGroup);
-        btn.classList.remove('active');
-      }
-    }
-
-    function toggleTraffic() {
-      isTrafficOn = !isTrafficOn;
-      const btn = document.getElementById('btnTraffic');
-      if (isTrafficOn) {
-        map.addLayer(trafficLayer);
-        btn.classList.add('active');
-      } else {
-        map.removeLayer(trafficLayer);
-        btn.classList.remove('active');
-      }
-    }
-
-    // Attiva/Disattiva la modalità orientamento 3D / Bussola
-    function toggle3DMode() {
-      is3DActive = !is3DActive;
-      const btn = document.getElementById('btn3D');
-      if (is3DActive) {
-        btn.classList.add('active');
-        requestOrientationPermission();
-      } else {
-        btn.classList.remove('active');
-        window.removeEventListener('deviceorientation', handleOrientation);
-      }
-    }
-
-    // Permessi per il giroscopio su iOS (richiesti da Safari)
-    function requestOrientationPermission() {
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission().then(response => {
-          if (response === 'granted') {
-            window.addEventListener('deviceorientation', handleOrientation);
-          } else {
-            alert("Permesso giroscopio negato.");
-          }
-        }).catch(console.error);
-      } else {
-        window.addEventListener('deviceorientation', handleOrientation);
-      }
-    }
-
-    // Gestione rotazione mappa tramite giroscopio / bussola del telefono
-    function handleOrientation(event) {
-      if (!is3DActive) return;
-      let alpha = event.alpha; // Rotazione bussola (0-360)
-      if (alpha !== null && map.getContainer()) {
-        // Applica una rotazione fluida al contenitore della mappa
-        const mapPane = map.getContainer().querySelector('.leaflet-map-pane');
-        if (mapPane) {
-          mapPane.style.transform = `rotate(${alpha}deg)`;
-        }
-      }
-    }
-
-    function getDistanceMeters(lat1, lon1, lat2, lon2) {
-      const R = 6371e3;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    }
-
-    function checkProximitySpeedCams(lat, lon) {
-      if (!isNavigating || !showSpeedCams) return;
-
-      speedCamsList.forEach(cam => {
-        const dist = getDistanceMeters(lat, lon, cam.lat, cam.lon);
-        if (dist <= 400 && lastWarnedCamId !== cam.id) {
-          lastWarnedCamId = cam.id;
-          speak("Attenzione! Autovelox a 400 metri.");
-        }
-      });
-    }
-
+    // Localizzazione e GPS
     function locateUser(centerMap = false) {
       if (!navigator.geolocation) return;
 
@@ -409,22 +264,35 @@
       watchId = navigator.geolocation.watchPosition(pos => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
-        userLocation = [lat, lng];
+        const heading = pos.coords.heading;
+        userLocation = [lng, lat];
 
         if (!userMarker) {
-          userMarker = L.circleMarker(userLocation, {
-            radius: 9, fillColor: '#0A84FF', color: '#ffffff', weight: 3, fillOpacity: 1
-          }).addTo(map);
-          loadNearbySpeedCams(lat, lng);
+          const el = document.createElement('div');
+          el.style.width = '18px';
+          el.style.height = '18px';
+          el.style.backgroundColor = '#0A84FF';
+          el.style.borderRadius = '50%';
+          el.style.border = '3px solid white';
+          el.style.boxShadow = '0 0 10px rgba(10,132,255,0.8)';
+          
+          userMarker = new maplibregl.Marker(el).setLngLat(userLocation).addTo(map);
         } else {
-          userMarker.setLatLng(userLocation);
+          userMarker.setLngLat(userLocation);
         }
 
-        if (isNavigating || centerMap) {
-          map.panTo(userLocation, { animate: true });
+        // Se siamo in Navigazione, la mappa va in 3D (pitch 60°), ingrandisce e ruota verso l'auto
+        if (isNavigating) {
+          map.easeTo({
+            center: userLocation,
+            zoom: 17.5,
+            pitch: 60, // Inclinazione 3D reale
+            bearing: heading || map.getBearing(),
+            duration: 1000
+          });
+        } else if (centerMap) {
+          map.flyTo({ center: userLocation, zoom: 15, pitch: 0 });
         }
-
-        checkProximitySpeedCams(lat, lon);
       }, err => console.log(err), {
         enableHighAccuracy: true,
         maximumAge: 1000,
@@ -432,6 +300,7 @@
       });
     }
 
+    // Ricerca Indirizzo
     async function searchPlace() {
       const query = document.getElementById('searchInput').value;
       if (!query) return;
@@ -442,29 +311,30 @@
 
         if (data && data.length > 0) {
           const place = data[0];
-          targetLocation = [parseFloat(place.lat), parseFloat(place.lon)];
+          targetLocation = [parseFloat(place.lon), parseFloat(place.lat)];
           
-          map.flyTo(targetLocation, 16);
-          L.marker(targetLocation).addTo(map);
+          if (targetMarker) targetMarker.remove();
+          targetMarker = new maplibregl.Marker({ color: '#ff3b30' })
+            .setLngLat(targetLocation)
+            .addTo(map);
+
+          map.flyTo({ center: targetLocation, zoom: 15, pitch: 0 });
 
           document.getElementById('cardTitle').innerText = place.display_name.split(',')[0];
           document.getElementById('cardSub').innerText = place.display_name;
           document.getElementById('placeCard').classList.add('active');
         } else {
-          alert("Nessun locale o indirizzo trovato.");
+          alert("Nessun luogo trovato.");
         }
       } catch (e) {
         alert("Errore durante la ricerca.");
       }
     }
 
-    function updateRouteIfNavigating() {
-      if (isNavigating) startNavigation();
-    }
-
-    function startNavigation() {
+    // Avvio Navigazione in 3D Stile Google Maps
+    async function startNavigation() {
       if (!userLocation) {
-        alert("Attiva prima il GPS della tua posizione.");
+        alert("Attiva prima il GPS toccando il pulsante 📍");
         return;
       }
 
@@ -473,44 +343,54 @@
       document.getElementById('searchBox').style.display = 'none';
       document.getElementById('routeOptions').style.display = 'none';
       document.getElementById('navBar').classList.add('active');
+      document.getElementById('mapControls').style.bottom = '110px';
 
-      // Attiva automaticamente la modalità 3D/Bussola all'avvio della navigazione
-      if (!is3DActive) toggle3DMode();
-
-      if (routingControl) map.removeControl(routingControl);
+      // Passaggio automatico alla Vista 3D
+      map.flyTo({
+        center: userLocation,
+        zoom: 17.5,
+        pitch: 60, // Inclinazione 3D
+        duration: 1500
+      });
 
       const avoidTolls = document.getElementById('avoidTolls').checked;
-      const routerOptions = {
-        serviceUrl: 'https://router.project-osrm.org/route/v1',
-        language: 'it'
-      };
+      
+      // Calcolo linea percorso
+      try {
+        const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${userLocation[0]},${userLocation[1]};${targetLocation[0]},${targetLocation[1]}?overview=full&geometries=geojson${avoidTolls ? '&exclude=toll' : ''}`);
+        const data = await res.json();
 
-      if (avoidTolls) {
-        routerOptions.exclude = 'toll';
-      }
+        if (data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          const mins = Math.round(route.duration / 60);
+          const km = (route.distance / 1000).toFixed(1);
 
-      routingControl = L.Routing.control({
-        waypoints: [
-          L.latLng(userLocation[0], userLocation[1]),
-          L.latLng(targetLocation[0], targetLocation[1])
-        ],
-        router: L.Routing.osrmv1(routerOptions),
-        lineOptions: { styles: [{ color: '#30d158', opacity: 0.9, weight: 8 }] },
-        createMarker: () => null
-      }).addTo(map);
+          document.getElementById('navTime').innerText = `${mins} min`;
+          document.getElementById('navDetails').innerText = `${km} km ${avoidTolls ? '• No pedaggi' : '• Percorso veloce'}`;
 
-      routingControl.on('routesfound', (e) => {
-        const route = e.routes[0];
-        const mins = Math.round(route.summary.totalTime / 60);
-        const km = (route.summary.totalDistance / 1000).toFixed(1);
+          const routeGeoJSON = {
+            'type': 'Feature',
+            'geometry': route.geometry
+          };
 
-        document.getElementById('navTime').innerText = `${mins} min`;
-        document.getElementById('navDetails').innerText = `${km} km ${avoidTolls ? '• No pedaggi' : '• Standard'}`;
+          if (map.getSource('route')) {
+            map.getSource('route').setData(routeGeoJSON);
+          } else {
+            map.addSource('route', { 'type': 'geojson', 'data': routeGeoJSON });
+            map.addLayer({
+              'id': 'route',
+              'type': 'line',
+              'source': 'route',
+              'layout': { 'line-join': 'round', 'line-cap': 'round' },
+              'paint': { 'line-color': '#30d158', 'line-width': 8, 'line-opacity': 0.85 }
+            });
+          }
 
-        if (route.instructions && route.instructions.length > 0) {
-          speak("Navigazione avviata. " + route.instructions[0].text);
+          speak(`Navigazione 3D avviata. Distanza ${km} chilometri.`);
         }
-      });
+      } catch (e) {
+        console.log("Errore percorso");
+      }
     }
 
     function stopNavigation() {
@@ -518,14 +398,26 @@
       document.getElementById('navBar').classList.remove('active');
       document.getElementById('searchBox').style.display = 'flex';
       document.getElementById('routeOptions').style.display = 'flex';
+      document.getElementById('mapControls').style.bottom = '105px';
 
-      if (is3DActive) toggle3DMode(); // Spegne la rotazione 3D
+      // Ripristina la mappa in 2D dall'alto
+      map.easeTo({ pitch: 0, bearing: 0, zoom: 14 });
 
-      if (routingControl) map.removeControl(routingControl);
+      if (map.getLayer('route')) map.removeLayer('route');
+      if (map.getSource('route')) map.removeSource('route');
+
       speak("Navigazione terminata.");
     }
 
-    document.getElementById('btnSpeedCams').classList.add('active');
+    function updateRouteIfNavigating() {
+      if (isNavigating) startNavigation();
+    }
+
+    function toggleSpeedCams() {
+      const btn = document.getElementById('btnSpeedCams');
+      btn.classList.toggle('active');
+    }
+
     locateUser();
   </script>
 </body>
