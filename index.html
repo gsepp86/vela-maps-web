@@ -203,7 +203,7 @@
 </head>
 <body>
 
-  <!-- Opzioni Filtro Percorso in alto a destra -->
+  <!-- Opzioni Filtro Percorso -->
   <div class="route-options" id="routeOptions">
     <input type="checkbox" id="avoidTolls" onchange="updateRouteIfNavigating()" />
     <label for="avoidTolls">No pedaggi</label>
@@ -216,6 +216,7 @@
   <div class="map-controls" id="mapControls">
     <button class="btn-ctrl" id="btnSpeedCams" onclick="toggleSpeedCams()" title="Autovelox">📷</button>
     <button class="btn-ctrl" id="btnTraffic" onclick="toggleTraffic()" title="Traffico">🚥</button>
+    <button class="btn-ctrl" id="btn3D" onclick="toggle3DMode()" title="Vista 3D / Giroscopio">🧭</button>
     <button class="btn-ctrl" onclick="locateUser(true)" title="La mia posizione">📍</button>
   </div>
 
@@ -247,7 +248,6 @@
   <script>
     const map = L.map('map', { zoomControl: false }).setView([41.9028, 12.4964], 6);
     
-    // Mappa scura OpenStreetMap basata su tiles libere senza API Key
     L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors'
@@ -269,6 +269,7 @@
     let showSpeedCams = true;
     let speedCamsList = [];
     let lastWarnedCamId = null;
+    let is3DActive = false;
 
     function speak(text) {
       if ('speechSynthesis' in window) {
@@ -337,6 +338,47 @@
       }
     }
 
+    // Attiva/Disattiva la modalità orientamento 3D / Bussola
+    function toggle3DMode() {
+      is3DActive = !is3DActive;
+      const btn = document.getElementById('btn3D');
+      if (is3DActive) {
+        btn.classList.add('active');
+        requestOrientationPermission();
+      } else {
+        btn.classList.remove('active');
+        window.removeEventListener('deviceorientation', handleOrientation);
+      }
+    }
+
+    // Permessi per il giroscopio su iOS (richiesti da Safari)
+    function requestOrientationPermission() {
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission().then(response => {
+          if (response === 'granted') {
+            window.addEventListener('deviceorientation', handleOrientation);
+          } else {
+            alert("Permesso giroscopio negato.");
+          }
+        }).catch(console.error);
+      } else {
+        window.addEventListener('deviceorientation', handleOrientation);
+      }
+    }
+
+    // Gestione rotazione mappa tramite giroscopio / bussola del telefono
+    function handleOrientation(event) {
+      if (!is3DActive) return;
+      let alpha = event.alpha; // Rotazione bussola (0-360)
+      if (alpha !== null && map.getContainer()) {
+        // Applica una rotazione fluida al contenitore della mappa
+        const mapPane = map.getContainer().querySelector('.leaflet-map-pane');
+        if (mapPane) {
+          mapPane.style.transform = `rotate(${alpha}deg)`;
+        }
+      }
+    }
+
     function getDistanceMeters(lat1, lon1, lat2, lon2) {
       const R = 6371e3;
       const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -382,7 +424,7 @@
           map.panTo(userLocation, { animate: true });
         }
 
-        checkProximitySpeedCams(lat, lng);
+        checkProximitySpeedCams(lat, lon);
       }, err => console.log(err), {
         enableHighAccuracy: true,
         maximumAge: 1000,
@@ -432,6 +474,9 @@
       document.getElementById('routeOptions').style.display = 'none';
       document.getElementById('navBar').classList.add('active');
 
+      // Attiva automaticamente la modalità 3D/Bussola all'avvio della navigazione
+      if (!is3DActive) toggle3DMode();
+
       if (routingControl) map.removeControl(routingControl);
 
       const avoidTolls = document.getElementById('avoidTolls').checked;
@@ -473,6 +518,8 @@
       document.getElementById('navBar').classList.remove('active');
       document.getElementById('searchBox').style.display = 'flex';
       document.getElementById('routeOptions').style.display = 'flex';
+
+      if (is3DActive) toggle3DMode(); // Spegne la rotazione 3D
 
       if (routingControl) map.removeControl(routingControl);
       speak("Navigazione terminata.");
