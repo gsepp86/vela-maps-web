@@ -181,11 +181,10 @@
     // Inizializza mappa centrata sull'Italia
     const map = L.map('map', { zoomControl: false }).setView([41.9028, 12.4964], 6);
     
-    // Mappa scura stile Vela Maps
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      subdomains: 'abcd',
+    // Mappa pulita basata su OpenStreetMap (Senza richieste di API Key)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap &copy; CARTO'
+      attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
     let userLocation = null;
