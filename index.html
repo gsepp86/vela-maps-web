@@ -1,577 +1,436 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Vela Maps" />
-  <title>Vela Maps Web 3D</title>
-  
-  <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png" />
-  <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png" />
-  
-  <!-- MapLibre GL 3D Engine -->
-  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
-  
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, "Segoe UI", sans-serif;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vela Maps">
+<meta name="theme-color" content="#1c1c1e">
+<title>Vela Maps 3D</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧭%3C/text%3E%3C/svg%3E">
+<link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+:root{--glass:rgba(28,28,30,.92);--line:rgba(255,255,255,.14);--blue:#0a84ff;--green:#30d158;--red:#ff453a;--mut:#a1a1a6;--top:env(safe-area-inset-top,0px);--bot:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Roboto,"Segoe UI",sans-serif;-webkit-tap-highlight-color:transparent}
+html,body,#map{height:100%;width:100%;overflow:hidden;background:#1c1c1e;color:#fff}
+button{font:inherit;cursor:pointer;border:0;color:#fff}
+.glass{background:var(--glass);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid var(--line);box-shadow:0 6px 24px rgba(0,0,0,.45)}
 
-    html, body, #map {
-      height: 100%;
-      width: 100vw;
-      background-color: #1c1c1e;
-      overflow: hidden;
-    }
+/* Ricerca */
+#searchBox{position:fixed;z-index:1000;left:50%;transform:translateX(-50%);bottom:calc(24px + var(--bot));width:calc(100% - 32px);max-width:480px;border-radius:24px;padding:6px 8px 6px 10px;display:none;gap:6px}
+body[data-mode=search] #searchBox{display:flex}
+#searchInput{flex:1;min-width:0;border:0;background:transparent;color:#fff;font-size:16px;padding:8px 6px;outline:0}
+#searchBox button{background:var(--blue);padding:8px 16px;border-radius:18px;font-weight:600}
+#results{position:fixed;z-index:1000;left:50%;transform:translateX(-50%);bottom:calc(86px + var(--bot));width:calc(100% - 32px);max-width:480px;border-radius:18px;display:none;overflow:hidden}
+#results button{display:block;width:100%;text-align:left;background:none;padding:11px 16px;border-bottom:1px solid var(--line)}
+#results button:last-child{border:0}
+#results small{display:block;color:var(--mut);font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-    /* Selettore Tipo di Percorso in alto a destra */
-    .route-options {
-      position: absolute;
-      top: 48px;
-      right: 16px;
-      z-index: 1000;
-      background: rgba(30, 30, 35, 0.92);
-      backdrop-filter: blur(15px);
-      -webkit-backdrop-filter: blur(15px);
-      padding: 10px 14px;
-      border-radius: 18px;
-      border: 1px solid rgba(255,255,255,0.15);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      color: #fff;
-      font-size: 13px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-    }
+/* Controlli */
+.controls{position:fixed;z-index:1000;right:14px;bottom:calc(100px + var(--bot));display:flex;flex-direction:column;gap:10px;transition:bottom .3s}
+body[data-mode=place] .controls{bottom:calc(250px + var(--bot))}
+body[data-mode=nav] .controls{bottom:calc(120px + var(--bot))}
+.btn{width:46px;height:46px;border-radius:50%;font-size:19px;background:var(--glass);border:1px solid var(--line);box-shadow:0 4px 16px rgba(0,0,0,.4)}
+.btn.active{background:var(--blue);border-color:var(--blue)}
 
-    .route-options select {
-      background: rgba(20, 20, 25, 0.9);
-      color: #fff;
-      border: 1px solid rgba(255,255,255,0.2);
-      padding: 6px 10px;
-      border-radius: 10px;
-      font-size: 13px;
-      outline: none;
-    }
+/* Schede in basso */
+.sheet{position:fixed;z-index:1002;left:0;right:0;bottom:0;background:#1c1c1e;border-radius:24px 24px 0 0;padding:22px 20px calc(18px + var(--bot));border-top:1px solid var(--line);box-shadow:0 -6px 24px rgba(0,0,0,.6);transform:translateY(110%);transition:transform .35s cubic-bezier(.1,.9,.2,1)}
+body[data-mode=place] #placeCard,body[data-mode=nav] #navBar{transform:none}
+.title{font-size:20px;font-weight:700;margin:0 36px 6px 0}
+.sub{font-size:13px;color:var(--mut);line-height:1.4;margin-bottom:14px;max-height:36px;overflow:hidden}
+.x{position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:50%;background:#3a3a3c}
+.row{display:flex;gap:12px;align-items:center;margin-bottom:14px}
+.row select{background:#2c2c2e;color:#fff;border:1px solid var(--line);padding:8px 10px;border-radius:10px;font-size:14px}
+#routeInfo{font-weight:600;color:var(--green)}
+.go{width:100%;background:var(--green);color:#000;font-weight:700;padding:14px;border-radius:14px;font-size:16px}
+#navBar{display:flex;align-items:center;justify-content:space-between}
+#navTime{font-size:26px;font-weight:700;color:var(--green)}
+#navDetails{font-size:14px;color:var(--mut);margin-top:2px}
+.stop{background:var(--red);padding:12px 22px;border-radius:16px;font-weight:700;font-size:16px}
 
-    /* Barra di ricerca in basso */
-    .search-box {
-      position: absolute;
-      bottom: 32px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 1000;
-      width: calc(100% - 32px);
-      max-width: 480px;
-      background: rgba(30, 30, 35, 0.92);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 24px;
-      display: flex;
-      padding: 6px 10px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-      transition: all 0.3s ease;
-    }
+/* Banner svolta */
+#turn{position:fixed;z-index:1002;top:calc(10px + var(--top));left:10px;right:10px;display:none;align-items:center;gap:14px;padding:12px 16px;border-radius:18px;background:#12602b;border:1px solid #1f8f43;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+body[data-mode=nav] #turn{display:flex}
+#turnIcon{font-size:38px;width:46px;text-align:center}
+#turnDist{font-size:22px;font-weight:700}
+#turnTxt{font-size:14px;opacity:.9}
+#toast{position:fixed;z-index:1003;left:50%;top:calc(var(--top) + 100px);transform:translate(-50%,-10px);background:rgba(0,0,0,.85);padding:10px 16px;border-radius:14px;font-size:14px;max-width:calc(100% - 32px);text-align:center;opacity:0;pointer-events:none;transition:.25s}
+#toast.show{opacity:1;transform:translate(-50%,0)}
 
-    .search-box input {
-      flex: 1;
-      border: none;
-      background: transparent;
-      color: #ffffff;
-      font-size: 16px;
-      padding: 8px 12px;
-      outline: none;
-    }
-
-    .search-box button {
-      background: #0A84FF;
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 18px;
-      font-weight: 600;
-      font-size: 15px;
-      cursor: pointer;
-    }
-
-    /* Controlli Fluttuanti Laterali */
-    .map-controls {
-      position: absolute;
-      bottom: 105px;
-      right: 16px;
-      z-index: 1000;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      transition: all 0.3s ease;
-    }
-
-    .btn-ctrl {
-      width: 50px;
-      height: 50px;
-      border-radius: 25px;
-      background: rgba(30, 30, 35, 0.92);
-      color: white;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-      cursor: pointer;
-      backdrop-filter: blur(10px);
-    }
-
-    .btn-ctrl.active {
-      background: #0A84FF;
-      border-color: #0A84FF;
-    }
-
-    /* Card Dettagli Locale */
-    .place-card {
-      position: absolute;
-      bottom: -320px;
-      left: 0; right: 0;
-      z-index: 1001;
-      background: #1c1c1e;
-      color: #fff;
-      border-top-left-radius: 24px;
-      border-top-right-radius: 24px;
-      padding: 24px 20px;
-      box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.6);
-      transition: bottom 0.35s cubic-bezier(0.1, 0.9, 0.2, 1);
-      border-top: 1px solid rgba(255,255,255,0.1);
-    }
-
-    .place-card.active { bottom: 0; }
-    .place-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
-    .place-sub { font-size: 14px; color: #a1a1a6; margin-bottom: 18px; line-height: 1.4; }
-
-    .btn-route {
-      display: block; width: 100%; background: #30d158; color: #000;
-      font-weight: 700; text-align: center; padding: 14px; border-radius: 14px;
-      border: none; font-size: 16px; cursor: pointer;
-    }
-
-    /* Barra Guida Navigazione Attiva Stile Google Maps */
-    .nav-bar {
-      position: absolute;
-      bottom: -150px;
-      left: 0; right: 0;
-      z-index: 1002;
-      background: #1c1c1e;
-      color: #fff;
-      padding: 20px 24px;
-      border-top-left-radius: 24px;
-      border-top-right-radius: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      box-shadow: 0 -6px 24px rgba(0,0,0,0.6);
-      transition: bottom 0.35s ease;
-      border-top: 1px solid rgba(255,255,255,0.1);
-    }
-
-    .nav-bar.active { bottom: 0; }
-    .nav-time { font-size: 26px; font-weight: bold; color: #30d158; }
-    .nav-details { font-size: 14px; color: #a1a1a6; margin-top: 2px; }
-    
-    .btn-stop {
-      background: #ff453a; color: white; border: none;
-      padding: 12px 22px; border-radius: 16px; font-weight: bold; font-size: 16px;
-      cursor: pointer;
-    }
-  </style>
+/* Posizione utente */
+.me{width:22px;height:22px;border-radius:50%;background:var(--blue);border:3px solid #fff;box-shadow:0 0 12px rgba(10,132,255,.9);position:relative}
+.me i{display:none;position:absolute;left:50%;top:-13px;margin-left:-7px;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:11px solid var(--blue)}
+.me.h i{display:block}
+</style>
 </head>
-<body>
+<body data-mode="search">
 
-  <!-- Opzioni Percorso in Alto a Destra -->
-  <div class="route-options" id="routeOptions">
-    <label for="routeType">Tipo percorso:</label>
-    <select id="routeType" onchange="updateRouteIfNavigating()">
+<div id="map"></div>
+
+<div id="turn"><div id="turnIcon">↑</div><div><div id="turnDist">--</div><div id="turnTxt">--</div></div></div>
+<div id="toast"></div>
+
+<div class="controls">
+  <button class="btn active" id="btnCams" onclick="toggleCams()" title="Autovelox">📷</button>
+  <button class="btn" id="btnTraffic" onclick="toggleTraffic()" title="Traffico">🚥</button>
+  <button class="btn" id="btnCompass" onclick="toggleCompass()" title="Bussola">🧭</button>
+  <button class="btn" id="btnVoice" onclick="toggleVoice()" title="Voce">🔊</button>
+  <button class="btn active" id="btnLoc" onclick="locate()" title="La mia posizione">📍</button>
+</div>
+
+<div id="results" class="glass"></div>
+<div id="searchBox" class="glass">
+  <input id="searchInput" type="search" placeholder="Cerca bar, ristoranti, indirizzi..." enterkeyhint="search" autocomplete="off">
+  <button onclick="searchPlace()">Cerca</button>
+</div>
+
+<div id="placeCard" class="sheet">
+  <button class="x" onclick="endTrip()" aria-label="Chiudi">✕</button>
+  <div class="title" id="cardTitle"></div>
+  <div class="sub" id="cardSub"></div>
+  <div class="row">
+    <select id="routeType" onchange="previewRoute(false)">
       <option value="fastest">Più veloce</option>
       <option value="shortest">Più breve</option>
-      <option value="notolls">Senza pedaggi (No autostrada)</option>
+      <option value="notolls">Evita pedaggi</option>
     </select>
+    <div id="routeInfo"></div>
   </div>
+  <button class="go" onclick="startNavigation()">Avvia navigazione 3D</button>
+</div>
 
-  <!-- Contenitore Mappa 3D -->
-  <div id="map"></div>
+<div id="navBar" class="sheet">
+  <div><div id="navTime">-- min</div><div id="navDetails">Calcolo…</div></div>
+  <button class="stop" onclick="endTrip();speak('Navigazione terminata.')">Esci</button>
+</div>
 
-  <!-- Controlli Fluttuanti -->
-  <div class="map-controls" id="mapControls">
-    <button class="btn-ctrl active" id="btnSpeedCams" onclick="toggleSpeedCams()" title="Autovelox">📷</button>
-    <button class="btn-ctrl" id="btnTraffic" onclick="toggleTraffic()" title="Traffico">🚥</button>
-    <button class="btn-ctrl" id="btnCompass" onclick="toggleCompassGyro()" title="Bussola/Giroscopio">🧭</button>
-    <button class="btn-ctrl" onclick="locateUser(true)" title="La mia posizione">📍</button>
-  </div>
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+<script>
+/* ===== Configurazione ===== */
+const CONFIG = {
+  STYLE: 'https://tiles.openfreemap.org/styles/liberty',      // mappa vettoriale con edifici 3D
+  VALHALLA: 'https://valhalla1.openstreetmap.de/route',       // routing + istruzioni in italiano
+  NOMINATIM: 'https://nominatim.openstreetmap.org/search',    // ricerca luoghi
+  OVERPASS: 'https://overpass-api.de/api/interpreter',       // autovelox da OpenStreetMap
+  TOMTOM_KEY: ''                                              // opzionale: chiave gratuita TomTom per il traffico
+};
 
-  <!-- Barra di Ricerca in Basso -->
-  <div class="search-box" id="searchBox">
-    <input type="text" id="searchInput" placeholder="Cerca bar, ristoranti, indirizzi..." />
-    <button onclick="searchPlace()">Cerca</button>
-  </div>
+/* ===== Stato ===== */
+const $ = id => document.getElementById(id);
+const EMPTY = { type: 'FeatureCollection', features: [] };
+const ARROWS = {4:'⚑',5:'⚑',6:'⚑',9:'↗',10:'→',11:'↘',12:'↷',13:'↶',14:'↙',15:'←',16:'↖',18:'↗',19:'↖',20:'↗',21:'↖',23:'↗',24:'↖',26:'⟳',27:'⟳'};
+let mode = 'search', user = null, gpsHeading = null, speedMs = 0, compassH = null, watchId = null;
+let marker = null, destMarker = null, dest = null, route = null, reqId = 0;
+let follow = true, voiceOn = true, camsOn = true, trafficOn = false, compassOn = false;
+let stepIdx = 1, announced = 0, minD = Infinity, offCount = 0, navDone = false, noReroute = 0, rerouting = false;
+let camList = [], camBB = null, camBusy = false, camRetry = 0, spokenCams = new Set();
+let wl = null, toastT, lastOrient = 0;
 
-  <!-- Scheda Locale -->
-  <div class="place-card" id="placeCard">
-    <div class="place-title" id="cardTitle">Nome Locale</div>
-    <div class="place-sub" id="cardSub">Indirizzo e dettagli</div>
-    <button class="btn-route" onclick="startNavigation()">Avvia Navigazione 3D</button>
-  </div>
+/* ===== Utilità ===== */
+const rad = d => d * Math.PI / 180;
+const angDiff = (a, b) => ((a - b + 540) % 360) - 180;
+const fmtMin = s => { const m = Math.max(1, Math.round(s / 60)); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`; };
+const fmtDist = d => d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.max(10, Math.round(d / 10) * 10) + ' m';
 
-  <!-- Barra Guida Attiva -->
-  <div class="nav-bar" id="navBar">
-    <div>
-      <div class="nav-time" id="navTime">-- min</div>
-      <div class="nav-details" id="navDetails">Calcolo percorso...</div>
-    </div>
-    <button class="btn-stop" onclick="stopNavigation()">Esci</button>
-  </div>
+function toast(t) {
+  const e = $('toast'); e.textContent = t; e.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove('show'), 3500);
+}
+async function getJSON(url, ms = 15000) {
+  const c = new AbortController(), t = setTimeout(() => c.abort(), ms);
+  try { const r = await fetch(url, { signal: c.signal }); if (!r.ok) throw new Error(r.status); return await r.json(); }
+  finally { clearTimeout(t); }
+}
+function dist(a, b) { // metri tra [lng,lat]
+  const dLat = rad(b[1] - a[1]), dLon = rad(b[0] - a[0]);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a[1])) * Math.cos(rad(b[1])) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371e3 * Math.asin(Math.sqrt(h));
+}
+function bearing(a, b) {
+  const y = Math.sin(rad(b[0] - a[0])) * Math.cos(rad(b[1]));
+  const x = Math.cos(rad(a[1])) * Math.sin(rad(b[1])) - Math.sin(rad(a[1])) * Math.cos(rad(b[1])) * Math.cos(rad(b[0] - a[0]));
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+function distToRoute(p, shape) { // distanza minima punto-polilinea (m)
+  const k = Math.cos(rad(p[1])) * 111320, m = 111320; let best = Infinity;
+  for (let i = 0; i < shape.length - 1; i++) {
+    const ax = (shape[i][0] - p[0]) * k, ay = (shape[i][1] - p[1]) * m;
+    const dx = (shape[i + 1][0] - p[0]) * k - ax, dy = (shape[i + 1][1] - p[1]) * m - ay, l = dx * dx + dy * dy;
+    const t = l ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l)) : 0;
+    best = Math.min(best, Math.hypot(ax + t * dx, ay + t * dy));
+  }
+  return best;
+}
+function decodePolyline(s, prec = 6) {
+  const f = 10 ** prec; let i = 0, lat = 0, lng = 0; const out = [];
+  const next = () => { let b, sh = 0, r = 0; do { b = s.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while (b >= 32); return r & 1 ? ~(r >> 1) : r >> 1; };
+  while (i < s.length) { lat += next(); lng += next(); out.push([lng / f, lat / f]); }
+  return out;
+}
 
-  <!-- Engine MapLibre GL -->
-  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+/* ===== Voce ===== */
+function speak(t) {
+  if (!voiceOn || !t || !('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(t); u.lang = 'it-IT';
+  const v = speechSynthesis.getVoices().find(v => v.lang.replace('_', '-') === 'it-IT'); if (v) u.voice = v;
+  speechSynthesis.speak(u);
+}
+function toggleVoice() {
+  voiceOn = !voiceOn; $('btnVoice').textContent = voiceOn ? '🔊' : '🔇';
+  if (!voiceOn && 'speechSynthesis' in window) speechSynthesis.cancel();
+}
 
-  <script>
-    const mapStyle = {
-      "version": 8,
-      "sources": {
-        "osm-tiles": {
-          "type": "raster",
-          "tiles": [
-            "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
-            "https://b.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png"
-          ],
-          "tileSize": 256,
-          "attribution": "&copy; OpenStreetMap contributors"
-        },
-        "traffic-tiles": {
-          "type": "raster",
-          "tiles": [
-            "https://a.freeway-traffic.com/tiles/traffic/{z}/{x}/{y}.png"
-          ],
-          "tileSize": 256
-        }
-      },
-      "layers": [
-        {
-          "id": "osm-tiles-layer",
-          "type": "raster",
-          "source": "osm-tiles",
-          "minzoom": 0,
-          "maxzoom": 19
-        }
-      ]
-    };
+/* ===== Mappa ===== */
+const map = new maplibregl.Map({ container: 'map', style: CONFIG.STYLE, center: [12.4964, 41.9028], zoom: 6, maxPitch: 75, attributionControl: { compact: true } });
+map.on('error', () => { if (!map.isStyleLoaded()) toast('Errore nel caricamento della mappa'); });
+map.on('load', () => {
+  const before = map.getStyle().layers.find(l => l.type === 'symbol')?.id;
+  if (CONFIG.TOMTOM_KEY) {
+    map.addSource('traffic', { type: 'raster', tileSize: 256, tiles: [`https://api.tomtom.com/traffic/map/4/tile/flow/relative/{z}/{x}/{y}.png?key=${CONFIG.TOMTOM_KEY}&tileSize=256`] });
+    map.addLayer({ id: 'traffic', type: 'raster', source: 'traffic', layout: { visibility: 'none' } }, before);
+  }
+  map.addSource('route', { type: 'geojson', data: EMPTY });
+  const lay = { 'line-join': 'round', 'line-cap': 'round' };
+  map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: lay, paint: { 'line-color': '#0a3d91', 'line-width': 12 } }, before);
+  map.addLayer({ id: 'route', type: 'line', source: 'route', layout: lay, paint: { 'line-color': '#0a84ff', 'line-width': 8 } }, before);
+  map.addSource('cams', { type: 'geojson', data: EMPTY });
+  map.addLayer({ id: 'cams', type: 'circle', source: 'cams', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 4, 17, 9], 'circle-color': '#ff453a', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
+  loadCams();
+});
+map.on('moveend', loadCams);
+map.on('click', () => { $('results').style.display = 'none'; });
+['dragstart', 'zoomstart', 'rotatestart', 'pitchstart'].forEach(ev => map.on(ev, e => { if (e.originalEvent && mode === 'nav') setFollow(false); }));
 
-    const map = new maplibregl.Map({
-      container: 'map',
-      style: mapStyle,
-      center: [12.4964, 41.9028],
-      zoom: 6,
-      pitch: 0,
-      bearing: 0
+function setFollow(v) { follow = v; $('btnLoc').classList.toggle('active', v); }
+function setMode(m) { mode = m; document.body.dataset.mode = m; $('results').style.display = 'none'; }
+
+/* ===== GPS ===== */
+function startGPS() {
+  if (!navigator.geolocation) return toast('GPS non disponibile');
+  if (watchId != null) return;
+  watchId = navigator.geolocation.watchPosition(onPos, e => toast('GPS: ' + e.message), { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 });
+}
+function onPos(p) {
+  const c = p.coords, first = !user;
+  user = [c.longitude, c.latitude]; speedMs = c.speed || 0;
+  if (c.heading != null && !isNaN(c.heading) && speedMs > 1.5) gpsHeading = c.heading;
+  if (!marker) {
+    const el = document.createElement('div'); el.className = 'me'; el.innerHTML = '<i></i>';
+    marker = new maplibregl.Marker({ element: el, rotationAlignment: 'map' }).setLngLat(user).addTo(map);
+  } else marker.setLngLat(user);
+  if (gpsHeading != null) { marker.setRotation(gpsHeading); marker.getElement().classList.add('h'); }
+  if (mode === 'nav') {
+    tickNav(user);
+    if (follow) map.easeTo({ center: user, zoom: 17, pitch: 60, bearing: navBearing(), offset: [0, innerHeight * .2], duration: 900, easing: t => t });
+  } else if (first && mode === 'search') map.flyTo({ center: user, zoom: 14 });
+  else if (first && mode === 'place') previewRoute(true);
+}
+const navBearing = () => speedMs > 1.5 && gpsHeading != null ? gpsHeading : (compassH ?? gpsHeading ?? map.getBearing());
+function locate() {
+  startGPS(); setFollow(true);
+  if (user) map.easeTo(mode === 'nav' ? { center: user, zoom: 17, pitch: 60, bearing: navBearing(), offset: [0, innerHeight * .2] } : { center: user, zoom: 15 });
+}
+
+/* ===== Bussola ===== */
+function onOrient(e) {
+  const h = e.webkitCompassHeading != null ? e.webkitCompassHeading : (e.absolute && e.alpha != null ? 360 - e.alpha : null);
+  if (h == null) return;
+  compassH = compassH == null ? h : (compassH + angDiff(h, compassH) * .25 + 360) % 360;
+  const now = performance.now();
+  if (now - lastOrient < 80 || (mode === 'nav' && speedMs > 1.5)) return;
+  lastOrient = now; map.setBearing(compassH);
+}
+async function toggleCompass() {
+  if (!compassOn) {
+    try {
+      if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission && await DeviceOrientationEvent.requestPermission() !== 'granted') return toast('Permesso bussola negato');
+    } catch (e) { return toast('Bussola non disponibile'); }
+    addEventListener('deviceorientation', onOrient); addEventListener('deviceorientationabsolute', onOrient);
+    compassOn = true;
+  } else {
+    removeEventListener('deviceorientation', onOrient); removeEventListener('deviceorientationabsolute', onOrient);
+    compassOn = false; compassH = null; map.easeTo({ bearing: 0 });
+  }
+  $('btnCompass').classList.toggle('active', compassOn);
+}
+
+/* ===== Autovelox (OpenStreetMap / Overpass) ===== */
+async function loadCams() {
+  if (!camsOn || camBusy || !map.getSource('cams') || map.getZoom() < 11 || Date.now() < camRetry) return;
+  const b = map.getBounds(), c = map.getCenter();
+  if (camBB && b.getSouth() >= camBB[0] && b.getWest() >= camBB[1] && b.getNorth() <= camBB[2] && b.getEast() <= camBB[3]) return;
+  const bb = [Math.min(b.getSouth(), c.lat - .05), Math.min(b.getWest(), c.lng - .07), Math.max(b.getNorth(), c.lat + .05), Math.max(b.getEast(), c.lng + .07)];
+  camBusy = true;
+  try {
+    const q = `[out:json][timeout:20];node["highway"="speed_camera"](${bb.join(',')});out 800;`;
+    const d = await getJSON(`${CONFIG.OVERPASS}?data=${encodeURIComponent(q)}`, 25000);
+    camList = d.elements.map(e => ({ id: e.id, ll: [e.lon, e.lat], max: e.tags?.maxspeed }));
+    map.getSource('cams').setData({ type: 'FeatureCollection', features: camList.map(c => ({ type: 'Feature', geometry: { type: 'Point', coordinates: c.ll }, properties: {} })) });
+    camBB = bb;
+  } catch (e) { camRetry = Date.now() + 30000; }
+  finally { camBusy = false; }
+}
+function toggleCams() {
+  camsOn = !camsOn; $('btnCams').classList.toggle('active', camsOn);
+  if (map.getLayer('cams')) map.setLayoutProperty('cams', 'visibility', camsOn ? 'visible' : 'none');
+  if (camsOn) loadCams();
+}
+function checkCams(pos) {
+  if (!camsOn) return;
+  for (const c of camList) {
+    if (spokenCams.has(c.id)) continue;
+    const d = dist(pos, c.ll);
+    if (d < 350 && distToRoute(c.ll, route.shape) < 35 && (gpsHeading == null || Math.abs(angDiff(bearing(pos, c.ll), gpsHeading)) < 60)) {
+      spokenCams.add(c.id);
+      const txt = `Attenzione, autovelox tra ${Math.max(50, Math.round(d / 50) * 50)} metri` + (c.max ? `, limite ${c.max}` : '');
+      speak(txt); toast('📷 ' + txt); break;
+    }
+  }
+}
+
+/* ===== Traffico (richiede chiave TomTom) ===== */
+function toggleTraffic() {
+  if (!CONFIG.TOMTOM_KEY) return toast('Traffico: inserisci una chiave TomTom gratuita in CONFIG.TOMTOM_KEY');
+  trafficOn = !trafficOn; $('btnTraffic').classList.toggle('active', trafficOn);
+  map.setLayoutProperty('traffic', 'visibility', trafficOn ? 'visible' : 'none');
+}
+
+/* ===== Ricerca ===== */
+async function searchPlace() {
+  const q = $('searchInput').value.trim(); if (!q) return;
+  $('searchInput').blur();
+  const c = map.getCenter();
+  try {
+    const d = await getJSON(`${CONFIG.NOMINATIM}?format=jsonv2&limit=5&accept-language=it&q=${encodeURIComponent(q)}&viewbox=${c.lng - 1},${c.lat + 1},${c.lng + 1},${c.lat - 1}`);
+    if (!d.length) return toast('Nessun luogo trovato');
+    if (d.length === 1) return selectPlace(d[0]);
+    const box = $('results'); box.innerHTML = '';
+    d.forEach(p => {
+      const [n, ...r] = p.display_name.split(',');
+      const b = document.createElement('button'), s = document.createElement('small');
+      b.textContent = n; s.textContent = r.slice(0, 3).join(',').trim(); b.append(s);
+      b.onclick = () => selectPlace(p); box.append(b);
     });
+    box.style.display = 'block';
+  } catch (e) { toast('Errore durante la ricerca'); }
+}
+$('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') searchPlace(); });
 
-    let userLocation = null;
-    let targetLocation = null;
-    let isNavigating = false;
-    let watchId = null;
-    let userMarker = null;
-    let targetMarker = null;
-    let isTrafficOn = false;
-    let isGyroActive = false;
-    let lastBearing = 0;
-    let navigationSteps = [];
-    let lastSpokenInstructionIndex = -1;
+function selectPlace(p) {
+  dest = [+p.lon, +p.lat];
+  destMarker?.remove();
+  destMarker = new maplibregl.Marker({ color: '#ff3b30' }).setLngLat(dest).addTo(map);
+  $('cardTitle').textContent = p.display_name.split(',')[0];
+  $('cardSub').textContent = p.display_name;
+  setMode('place'); startGPS(); previewRoute(true);
+}
 
-    // Sintesi Vocale Avanzata (TTS)
-    function speak(text) {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const msg = new SpeechSynthesisUtterance(text);
-        msg.lang = 'it-IT';
-        msg.rate = 1.0;
-        msg.pitch = 1.0;
-        window.speechSynthesis.speak(msg);
-      }
+/* ===== Percorso (Valhalla) ===== */
+async function computeRoute(from, to) {
+  const t = $('routeType').value, auto = {};
+  if (t === 'shortest') auto.shortest = true;
+  if (t === 'notolls') auto.use_tolls = 0;
+  const body = {
+    locations: [{ lat: from[1], lon: from[0] }, { lat: to[1], lon: to[0] }],
+    costing: 'auto', costing_options: { auto },
+    directions_options: { language: 'it-IT', units: 'kilometers' }
+  };
+  const d = await getJSON(`${CONFIG.VALHALLA}?json=${encodeURIComponent(JSON.stringify(body))}`);
+  const leg = d.trip.legs[0];
+  return { shape: decodePolyline(leg.shape), steps: leg.maneuvers, km: d.trip.summary.length, sec: d.trip.summary.time };
+}
+function setRoute(r) {
+  r.rem = new Array(r.steps.length + 1).fill(0); // km residui da ogni manovra
+  for (let i = r.steps.length - 1; i >= 0; i--) r.rem[i] = r.rem[i + 1] + r.steps[i].length;
+  route = r;
+  map.getSource('route')?.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: r.shape } });
+}
+async function previewRoute(fit) {
+  if (!dest) return;
+  const id = ++reqId;
+  if (!user) { $('routeInfo').textContent = 'Attiva il GPS (📍) per il percorso'; map.flyTo({ center: dest, zoom: 15 }); return; }
+  $('routeInfo').textContent = 'Calcolo…';
+  try {
+    const r = await computeRoute(user, dest);
+    if (id !== reqId) return;
+    setRoute(r); $('routeInfo').textContent = `${fmtMin(r.sec)} · ${r.km.toFixed(1)} km`;
+    if (fit) {
+      const s = r.shape, b = s.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(s[0], s[0]));
+      map.fitBounds(b, { padding: { top: 60, bottom: 320, left: 40, right: 70 }, pitch: 0, bearing: 0, maxZoom: 16, duration: 900 });
     }
+  } catch (e) {
+    if (id !== reqId) return;
+    route = null; map.getSource('route')?.setData(EMPTY);
+    $('routeInfo').textContent = 'Percorso non trovato'; map.flyTo({ center: dest, zoom: 15 });
+  }
+}
 
-    function toggleTraffic() {
-      isTrafficOn = !isTrafficOn;
-      const btn = document.getElementById('btnTraffic');
-      
-      if (isTrafficOn) {
-        btn.classList.add('active');
-        if (!map.getLayer('traffic-layer')) {
-          map.addLayer({
-            'id': 'traffic-layer',
-            'type': 'raster',
-            'source': 'traffic-tiles',
-            'paint': { 'raster-opacity': 0.7 }
-          });
-        }
-      } else {
-        btn.classList.remove('active');
-        if (map.getLayer('traffic-layer')) {
-          map.removeLayer('traffic-layer');
-        }
-      }
-    }
+/* ===== Navigazione ===== */
+function startNavigation() {
+  if (!route || !user) return toast('Percorso non ancora pronto');
+  if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } // sblocca la voce su iOS
+  setMode('nav'); setFollow(true);
+  stepIdx = 1; announced = 0; minD = Infinity; offCount = 0; navDone = false; spokenCams = new Set();
+  acquireWake();
+  speak(`Navigazione avviata. ${route.steps[0]?.instruction || ''}`);
+  tickNav(user);
+  map.easeTo({ center: user, zoom: 17, pitch: 60, bearing: navBearing(), offset: [0, innerHeight * .2], duration: 1500 });
+}
+function tickNav(pos) {
+  if (!route || navDone) return;
+  const st = route.steps[stepIdx];
+  if (distToRoute(pos, route.shape) > 50) { if (++offCount >= 3) reroute(); } else offCount = 0;
+  if (!st) return;
+  const d = dist(pos, route.shape[st.begin_shape_index]);
+  minD = Math.min(minD, d);
+  const far = Math.min(800, Math.max(200, speedMs * 14));
+  if (announced < 1 && d < far && d > 60) {
+    announced = 1; speak(`Tra ${Math.max(50, Math.round(d / 50) * 50)} metri, ${st.verbal_pre_transition_instruction || st.instruction}`);
+  }
+  if (announced < 2 && d < 50) { announced = 2; speak(st.verbal_transition_alert_instruction || st.instruction); }
+  if (d < 25 || (minD < 70 && d > minD + 20)) { // manovra raggiunta o appena superata
+    if (st.type >= 4 && st.type <= 6) return arrived();
+    stepIdx++; announced = 0; minD = Infinity; return tickNav(pos);
+  }
+  const remKm = d / 1000 + route.rem[stepIdx], remSec = route.sec * remKm / route.km;
+  $('turnIcon').textContent = ARROWS[st.type] || '↑';
+  $('turnDist').textContent = fmtDist(d);
+  $('turnTxt').textContent = st.instruction;
+  $('navTime').textContent = fmtMin(remSec);
+  $('navDetails').textContent = `${remKm.toFixed(1)} km • arrivo ${new Date(Date.now() + remSec * 1e3).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
+  checkCams(pos);
+}
+async function reroute() {
+  if (rerouting || Date.now() < noReroute) return;
+  rerouting = true; noReroute = Date.now() + 10000;
+  speak('Ricalcolo del percorso.');
+  try {
+    setRoute(await computeRoute(user, dest));
+    stepIdx = 1; announced = 0; minD = Infinity; offCount = 0;
+  } catch (e) { toast('Ricalcolo non riuscito'); }
+  finally { rerouting = false; }
+}
+function arrived() {
+  navDone = true; speak('Sei arrivato a destinazione.'); toast('🏁 Sei arrivato a destinazione');
+  setTimeout(endTrip, 6000);
+}
+function endTrip() {
+  setMode('search'); route = null; dest = null; reqId++;
+  destMarker?.remove(); destMarker = null;
+  map.getSource('route')?.setData(EMPTY);
+  releaseWake(); setFollow(true);
+  map.easeTo({ pitch: 0, bearing: 0, zoom: 14, ...(user ? { center: user } : {}) });
+}
 
-    function toggleCompassGyro() {
-      isGyroActive = !isGyroActive;
-      const btn = document.getElementById('btnCompass');
+/* ===== Schermo sempre acceso in navigazione ===== */
+async function acquireWake() { try { wl = await navigator.wakeLock?.request('screen'); } catch (e) {} }
+function releaseWake() { wl?.release().catch(() => {}); wl = null; }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && mode === 'nav') acquireWake(); });
 
-      if (isGyroActive) {
-        btn.classList.add('active');
-        enableGyro();
-      } else {
-        btn.classList.remove('active');
-        window.removeEventListener('deviceorientation', handleGyroOrientation);
-      }
-    }
-
-    function enableGyro() {
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission().then(response => {
-          if (response === 'granted') {
-            window.addEventListener('deviceorientation', handleGyroOrientation);
-          } else {
-            alert("Permesso giroscopio non concesso.");
-          }
-        }).catch(console.error);
-      } else {
-        window.addEventListener('deviceorientation', handleGyroOrientation);
-      }
-    }
-
-    function handleGyroOrientation(e) {
-      if (!isGyroActive) return;
-      let alpha = e.alpha || e.webkitCompassHeading;
-      if (alpha !== undefined && alpha !== null) {
-        let smoothedBearing = lastBearing + (alpha - lastBearing) * 0.15;
-        lastBearing = smoothedBearing;
-        map.setBearing(smoothedBearing);
-      }
-    }
-
-    function getDistanceMeters(lat1, lon1, lat2, lon2) {
-      const R = 6371e3;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    }
-
-    // Controllo prossimità passaggi guida vocale
-    function checkNavigationVoice(lat, lng) {
-      if (!isNavigating || navigationSteps.length === 0) return;
-
-      navigationSteps.forEach((step, index) => {
-        if (index > lastSpokenInstructionIndex && step.maneuver && step.maneuver.location) {
-          const sLon = step.maneuver.location[0];
-          const sLat = step.maneuver.location[1];
-          const dist = getDistanceMeters(lat, lng, sLat, sLon);
-
-          if (dist < 40) { // Entro 40 metri dalla manovra
-            lastSpokenInstructionIndex = index;
-            let instructionText = step.instruction || "Procedi dritto";
-            speak(instructionText);
-          }
-        }
-      });
-    }
-
-    function locateUser(centerMap = false) {
-      if (!navigator.geolocation) return;
-
-      if (watchId) navigator.geolocation.clearWatch(watchId);
-
-      watchId = navigator.geolocation.watchPosition(pos => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const heading = pos.coords.heading;
-        userLocation = [lng, lat];
-
-        if (!userMarker) {
-          const el = document.createElement('div');
-          el.style.width = '20px';
-          el.style.height = '20px';
-          el.style.backgroundColor = '#0A84FF';
-          el.style.borderRadius = '50%';
-          el.style.border = '3px solid white';
-          el.style.boxShadow = '0 0 12px rgba(10,132,255,0.9)';
-          
-          userMarker = new maplibregl.Marker(el).setLngLat(userLocation).addTo(map);
-        } else {
-          userMarker.setLngLat(userLocation);
-        }
-
-        if (isNavigating) {
-          let moveBearing = (heading !== null && heading !== undefined) ? heading : map.getBearing();
-          map.easeTo({
-            center: userLocation,
-            zoom: 17.5,
-            pitch: 60,
-            bearing: moveBearing,
-            duration: 800
-          });
-          checkNavigationVoice(lat, lng);
-        } else if (centerMap) {
-          map.flyTo({ center: userLocation, zoom: 15, pitch: 0 });
-        }
-      }, err => console.log(err), {
-        enableHighAccuracy: true,
-        maximumAge: 1000,
-        timeout: 10000
-      });
-    }
-
-    async function searchPlace() {
-      const query = document.getElementById('searchInput').value;
-      if (!query) return;
-
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-        const data = await res.json();
-
-        if (data && data.length > 0) {
-          const place = data[0];
-          targetLocation = [parseFloat(place.lon), parseFloat(place.lat)];
-          
-          if (targetMarker) targetMarker.remove();
-          targetMarker = new maplibregl.Marker({ color: '#ff3b30' })
-            .setLngLat(targetLocation)
-            .addTo(map);
-
-          map.flyTo({ center: targetLocation, zoom: 15, pitch: 0 });
-
-          document.getElementById('cardTitle').innerText = place.display_name.split(',')[0];
-          document.getElementById('cardSub').innerText = place.display_name;
-          document.getElementById('placeCard').classList.add('active');
-        } else {
-          alert("Nessun luogo trovato.");
-        }
-      } catch (e) {
-        alert("Errore durante la ricerca.");
-      }
-    }
-
-    async function startNavigation() {
-      if (!userLocation) {
-        alert("Attiva prima il GPS toccando il pulsante 📍");
-        return;
-      }
-
-      isNavigating = true;
-      lastSpokenInstructionIndex = -1;
-      document.getElementById('placeCard').classList.remove('active');
-      document.getElementById('searchBox').style.display = 'none';
-      document.getElementById('routeOptions').style.display = 'none';
-      document.getElementById('navBar').classList.add('active');
-      document.getElementById('mapControls').style.bottom = '110px';
-
-      map.flyTo({
-        center: userLocation,
-        zoom: 17.5,
-        pitch: 60,
-        duration: 1500
-      });
-
-      const routeType = document.getElementById('routeType').value;
-      let url = `https://router.project-osrm.org/route/v1/driving/${userLocation[0]},${userLocation[1]};${targetLocation[0]},${targetLocation[1]}?overview=full&geometries=geojson&steps=true`;
-
-      if (routeType === 'shortest') {
-        url += `&annotations=distance`;
-      } else if (routeType === 'notolls') {
-        url += `&exclude=toll`;
-      }
-
-      try {
-        const res = await fetch(url);
-        const data = await res.json();
-
-        if (data.routes && data.routes.length > 0) {
-          const route = data.routes[0];
-          const mins = Math.round(route.duration / 60);
-          const km = (route.distance / 1000).toFixed(1);
-
-          // Estrai i passaggi dettagliati per la voce guida
-          navigationSteps = [];
-          if (route.legs && route.legs[0].steps) {
-            navigationSteps = route.legs[0].steps;
-          }
-
-          let modeText = "Veloce";
-          if (routeType === 'shortest') modeText = "Più breve";
-          if (routeType === 'notolls') modeText = "Senza pedaggi";
-
-          document.getElementById('navTime').innerText = `${mins} min`;
-          document.getElementById('navDetails').innerText = `${km} km • ${modeText}`;
-
-          const routeGeoJSON = {
-            'type': 'Feature',
-            'geometry': route.geometry
-          };
-
-          if (map.getSource('route')) {
-            map.getSource('route').setData(routeGeoJSON);
-          } else {
-            map.addSource('route', { 'type': 'geojson', 'data': routeGeoJSON });
-            map.addLayer({
-              'id': 'route',
-              'type': 'line',
-              'source': 'route',
-              'layout': { 'line-join': 'round', 'line-cap': 'round' },
-              'paint': { 'line-color': '#0A84FF', 'line-width': 8, 'line-opacity': 0.9 }
-            });
-          }
-
-          speak(`Navigazione avviata. Distanza ${km} chilometri. Procedi verso la destinazione.`);
-        }
-      } catch (e) {
-        console.log("Errore calcolo percorso");
-      }
-    }
-
-    function stopNavigation() {
-      isNavigating = false;
-      navigationSteps = [];
-      document.getElementById('navBar').classList.remove('active');
-      document.getElementById('searchBox').style.display = 'flex';
-      document.getElementById('routeOptions').style.display = 'flex';
-      document.getElementById('mapControls').style.bottom = '105px';
-
-      isGyroActive = false;
-      document.getElementById('btnCompass').classList.remove('active');
-      window.removeEventListener('deviceorientation', handleGyroOrientation);
-
-      map.easeTo({ pitch: 0, bearing: 0, zoom: 14 });
-
-      if (map.getLayer('route')) map.removeLayer('route');
-      if (map.getSource('route')) map.removeSource('route');
-
-      speak("Navigazione terminata.");
-    }
-
-    function updateRouteIfNavigating() {
-      if (isNavigating) startNavigation();
-    }
-
-    function toggleSpeedCams() {
-      const btn = document.getElementById('btnSpeedCams');
-      btn.classList.toggle('active');
-    }
-
-    locateUser();
-  </script>
+startGPS();
+</script>
 </body>
 </html>
