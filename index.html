@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Vela Maps" />
+  <title>Vela Maps Web</title>
+  
+  <!-- Icona per la Schermata Home di iOS e Android -->
+  <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png" />
+  <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png" />
+  
+  <!-- Leaflet CSS & Routing CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+  
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, "Segoe UI", sans-serif;
+    }
+
+    html, body, #map {
+      height: 100%;
+      width: 100vw;
+      background-color: #121212;
+      overflow: hidden;
+    }
+
+    /* Barra di ricerca superiore stile Vela Maps */
+    .search-box {
+      position: absolute;
+      top: 48px; /* Spazio per la notch degli smartphone */
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      width: calc(100% - 32px);
+      max-width: 480px;
+      background: rgba(28, 28, 30, 0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 24px;
+      display: flex;
+      padding: 6px 10px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .search-box input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: #ffffff;
+      font-size: 16px;
+      padding: 8px 12px;
+      outline: none;
+    }
+
+    .search-box button {
+      background: #0A84FF;
+      color: white;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 18px;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    /* Scheda Dettaglio Locale (Bottom Sheet) */
+    .place-card {
+      position: absolute;
+      bottom: -320px;
+      left: 0;
+      right: 0;
+      z-index: 1001;
+      background: #1c1c1e;
+      color: #fff;
+      border-top-left-radius: 24px;
+      border-top-right-radius: 24px;
+      padding: 24px 20px;
+      box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.6);
+      transition: bottom 0.35s cubic-bezier(0.1, 0.9, 0.2, 1);
+      max-height: 280px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .place-card.active {
+      bottom: 0;
+    }
+
+    .place-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #ffffff;
+    }
+
+    .place-sub {
+      font-size: 14px;
+      color: #a1a1a6;
+      margin-bottom: 18px;
+      line-height: 1.4;
+    }
+
+    .btn-route {
+      display: block;
+      width: 100%;
+      background: #30d158;
+      color: #000000;
+      font-weight: 700;
+      text-align: center;
+      padding: 14px;
+      border-radius: 14px;
+      border: none;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    /* Pulsante posizione GPS */
+    .fab-container {
+      position: absolute;
+      bottom: 32px;
+      right: 16px;
+      z-index: 1000;
+    }
+
+    .fab {
+      width: 52px;
+      height: 52px;
+      border-radius: 26px;
+      background: #2c2c2e;
+      color: white;
+      border: 1px solid rgba(255,255,255,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      cursor: pointer;
+    }
+
+    /* Nasconde il pannello di testo del percorso di default */
+    .leaflet-routing-container {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Barra di ricerca -->
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="Cerca bar, ristoranti, indirizzi..." />
+    <button onclick="searchPlace()">Cerca</button>
+  </div>
+
+  <!-- Contenitore Mappa -->
+  <div id="map"></div>
+
+  <!-- Scheda del locale (Bottom Sheet) -->
+  <div class="place-card" id="placeCard">
+    <div class="place-title" id="cardTitle">Nome Locale</div>
+    <div class="place-sub" id="cardSub">Indirizzo e dettagli</div>
+    <button class="btn-route" onclick="startNavigation()">Avvia Navigazione Vocale</button>
+  </div>
+
+  <!-- Pulsante Posizione -->
+  <div class="fab-container">
+    <button class="fab" onclick="locateUser()">📍</button>
+  </div>
+
+  <!-- Librerie Leaflet e Routing -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+  <script>
+    // Inizializza mappa centrata sull'Italia
+    const map = L.map('map', { zoomControl: false }).setView([41.9028, 12.4964], 6);
+    
+    // Mappa scura stile Vela Maps
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      subdomains: 'abcd',
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap &copy; CARTO'
+    }).addTo(map);
+
+    let userLocation = null;
+    let targetLocation = null;
+    let routingControl = null;
+
+    // Sintesi vocale (Siri su iOS, Google su Android)
+    function speak(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const msg = new SpeechSynthesisUtterance(text);
+        msg.lang = 'it-IT';
+        msg.rate = 1.0;
+        window.speechSynthesis.speak(msg);
+      }
+    }
+
+    // Localizzazione GPS utente
+    function locateUser() {
+      if (!navigator.geolocation) {
+        alert("La geolocalizzazione non è supportata dal dispositivo.");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(pos => {
+        userLocation = [pos.coords.latitude, pos.coords.longitude];
+        map.flyTo(userLocation, 15);
+
+        L.circleMarker(userLocation, {
+          radius: 8,
+          fillColor: '#0A84FF',
+          color: '#ffffff',
+          weight: 3,
+          fillOpacity: 0.9
+        }).addTo(map);
+      }, () => {
+        alert("Attiva i permessi di geolocalizzazione per individuare la tua posizione.");
+      });
+    }
+
+    // Ricerca dei luoghi tramite Proxy
+    async function searchPlace() {
+      const query = document.getElementById('searchInput').value;
+      if(!query) return;
+
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+
+        if(data && data.length > 0) {
+          const place = data[0];
+          targetLocation = [parseFloat(place.lat), parseFloat(place.lon)];
+          
+          map.flyTo(targetLocation, 16);
+          L.marker(targetLocation).addTo(map);
+
+          document.getElementById('cardTitle').innerText = place.display_name.split(',')[0];
+          document.getElementById('cardSub').innerText = place.display_name;
+          document.getElementById('placeCard').classList.add('active');
+        } else {
+          alert("Nessun locale o indirizzo trovato.");
+        }
+      } catch (e) {
+        alert("Errore durante la ricerca.");
+      }
+    }
+
+    // Avvio del percorso con indicazioni vocali
+    function startNavigation() {
+      if(!userLocation) {
+        alert("Attiva prima il GPS toccando il pulsante 📍");
+        return;
+      }
+
+      if (routingControl) map.removeControl(routingControl);
+
+      routingControl = L.Routing.control({
+        waypoints: [
+          L.latLng(userLocation[0], userLocation[1]),
+          L.latLng(targetLocation[0], targetLocation[1])
+        ],
+        router: L.Routing.osrmv1({
+          serviceUrl: 'https://router.project-osrm.org/route/v1',
+          language: 'it'
+        }),
+        lineOptions: {
+          styles: [{ color: '#30d158', opacity: 0.85, weight: 6 }]
+        },
+        createMarker: () => null
+      }).addTo(map);
+
+      routingControl.on('routesfound', (e) => {
+        const instructions = e.routes[0].instructions;
+        if(instructions && instructions.length > 0) {
+          speak("Navigazione avviata. " + instructions[0].text);
+        }
+      });
+
+      document.getElementById('placeCard').classList.remove('active');
+    }
+
+    // Avvia geolocalizzazione all'apertura
+    locateUser();
+  </script>
+</body>
+</html>
