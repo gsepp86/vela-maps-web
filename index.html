@@ -238,7 +238,6 @@
   <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
 
   <script>
-    // Stile Raster OpenStreetMap pulito e gratuito (Zero API Key richieste)
     const mapStyle = {
       "version": 8,
       "sources": {
@@ -288,18 +287,21 @@
     let isTrafficOn = false;
     let isGyroActive = false;
     let lastBearing = 0;
+    let navigationSteps = [];
+    let lastSpokenInstructionIndex = -1;
 
+    // Sintesi Vocale Avanzata (TTS)
     function speak(text) {
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const msg = new SpeechSynthesisUtterance(text);
         msg.lang = 'it-IT';
         msg.rate = 1.0;
+        msg.pitch = 1.0;
         window.speechSynthesis.speak(msg);
       }
     }
 
-    // Toggle Traffico
     function toggleTraffic() {
       isTrafficOn = !isTrafficOn;
       const btn = document.getElementById('btnTraffic');
@@ -322,7 +324,6 @@
       }
     }
 
-    // Giroscopio / Bussola con filtro di smorzamento per evitare sfarfallii
     function toggleCompassGyro() {
       isGyroActive = !isGyroActive;
       const btn = document.getElementById('btnCompass');
@@ -354,14 +355,41 @@
       if (!isGyroActive) return;
       let alpha = e.alpha || e.webkitCompassHeading;
       if (alpha !== undefined && alpha !== null) {
-        // Smoothing del movimento per renderlo fluido e non troppo sensibile
         let smoothedBearing = lastBearing + (alpha - lastBearing) * 0.15;
         lastBearing = smoothedBearing;
         map.setBearing(smoothedBearing);
       }
     }
 
-    // Localizzazione GPS
+    function getDistanceMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371e3;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    // Controllo prossimità passaggi guida vocale
+    function checkNavigationVoice(lat, lng) {
+      if (!isNavigating || navigationSteps.length === 0) return;
+
+      navigationSteps.forEach((step, index) => {
+        if (index > lastSpokenInstructionIndex && step.maneuver && step.maneuver.location) {
+          const sLon = step.maneuver.location[0];
+          const sLat = step.maneuver.location[1];
+          const dist = getDistanceMeters(lat, lng, sLat, sLon);
+
+          if (dist < 40) { // Entro 40 metri dalla manovra
+            lastSpokenInstructionIndex = index;
+            let instructionText = step.instruction || "Procedi dritto";
+            speak(instructionText);
+          }
+        }
+      });
+    }
+
     function locateUser(centerMap = false) {
       if (!navigator.geolocation) return;
 
@@ -396,6 +424,7 @@
             bearing: moveBearing,
             duration: 800
           });
+          checkNavigationVoice(lat, lng);
         } else if (centerMap) {
           map.flyTo({ center: userLocation, zoom: 15, pitch: 0 });
         }
@@ -406,7 +435,6 @@
       });
     }
 
-    // Ricerca Indirizzo
     async function searchPlace() {
       const query = document.getElementById('searchInput').value;
       if (!query) return;
@@ -437,7 +465,6 @@
       }
     }
 
-    // Avvio Navigazione con opzioni di percorso (Veloce, Breve, No Pedaggi)
     async function startNavigation() {
       if (!userLocation) {
         alert("Attiva prima il GPS toccando il pulsante 📍");
@@ -445,6 +472,7 @@
       }
 
       isNavigating = true;
+      lastSpokenInstructionIndex = -1;
       document.getElementById('placeCard').classList.remove('active');
       document.getElementById('searchBox').style.display = 'none';
       document.getElementById('routeOptions').style.display = 'none';
@@ -459,7 +487,7 @@
       });
 
       const routeType = document.getElementById('routeType').value;
-      let url = `https://router.project-osrm.org/route/v1/driving/${userLocation[0]},${userLocation[1]};${targetLocation[0]},${targetLocation[1]}?overview=full&geometries=geojson`;
+      let url = `https://router.project-osrm.org/route/v1/driving/${userLocation[0]},${userLocation[1]};${targetLocation[0]},${targetLocation[1]}?overview=full&geometries=geojson&steps=true`;
 
       if (routeType === 'shortest') {
         url += `&annotations=distance`;
@@ -475,6 +503,12 @@
           const route = data.routes[0];
           const mins = Math.round(route.duration / 60);
           const km = (route.distance / 1000).toFixed(1);
+
+          // Estrai i passaggi dettagliati per la voce guida
+          navigationSteps = [];
+          if (route.legs && route.legs[0].steps) {
+            navigationSteps = route.legs[0].steps;
+          }
 
           let modeText = "Veloce";
           if (routeType === 'shortest') modeText = "Più breve";
@@ -501,7 +535,7 @@
             });
           }
 
-          speak(`Navigazione avviata. Percorso ${modeText}, distanza ${km} chilometri.`);
+          speak(`Navigazione avviata. Distanza ${km} chilometri. Procedi verso la destinazione.`);
         }
       } catch (e) {
         console.log("Errore calcolo percorso");
@@ -510,6 +544,7 @@
 
     function stopNavigation() {
       isNavigating = false;
+      navigationSteps = [];
       document.getElementById('navBar').classList.remove('active');
       document.getElementById('searchBox').style.display = 'flex';
       document.getElementById('routeOptions').style.display = 'flex';
