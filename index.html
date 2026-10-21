@@ -23,6 +23,8 @@ button{font:inherit;cursor:pointer;border:0;color:#fff}
 body[data-mode=search] #searchBox{display:flex}
 #searchInput{flex:1;min-width:0;border:0;background:transparent;color:#fff;font-size:16px;padding:8px 6px;outline:0}
 #searchBox button{background:var(--blue);padding:8px 16px;border-radius:18px;font-weight:600}
+#searchBox .mic{background:transparent;width:38px;height:38px;padding:0;font-size:20px}
+#searchBox .mic.rec{background:var(--red);border-radius:50%}
 #results{position:fixed;z-index:1000;left:50%;transform:translateX(-50%);bottom:calc(86px + var(--bot));width:calc(100% - 32px);max-width:480px;border-radius:18px;display:none;overflow:hidden}
 #results button{display:block;width:100%;text-align:left;background:none;padding:11px 16px;border-bottom:1px solid var(--line)}
 #results button:last-child{border:0}
@@ -84,6 +86,7 @@ body[data-mode=nav] #turn{display:flex}
 <div id="results" class="glass"></div>
 <div id="searchBox" class="glass">
   <input id="searchInput" type="search" placeholder="Cerca bar, ristoranti, indirizzi..." enterkeyhint="search" autocomplete="off">
+  <button id="btnMic" class="mic" onclick="voiceSearch()" aria-label="Ricerca vocale">🎤</button>
   <button onclick="searchPlace()">Cerca</button>
 </div>
 
@@ -173,23 +176,47 @@ function decodePolyline(s, prec = 6) {
 }
 
 /* ===== Voce ===== */
-let itVoice = null, curUtt = null, speakT = 0;
+let itVoice = null, curUtt = null, speakT = 0, ac = null;
 function pickVoice() {
   if (!('speechSynthesis' in window)) return;
-  const vs = speechSynthesis.getVoices();
-  itVoice = vs.find(v => /^it[-_]IT$/i.test(v.lang) && v.localService) || vs.find(v => /^it/i.test(v.lang)) || null;
+  const it = speechSynthesis.getVoices().filter(v => /^it/i.test(v.lang.replace('_', '-')));
+  itVoice = it.find(v => /alice|luca|federica|paola|elsa|cosimo|google/i.test(v.name)) || it[0] || null;
 }
 pickVoice();
 if ('speechSynthesis' in window) speechSynthesis.onvoiceschanged = pickVoice;
-function speak(text) {
+
+function beep() { // segnale acustico di riserva se la sintesi vocale non parte
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.value = 880; g.gain.value = .25; o.connect(g); g.connect(ac.destination);
+    o.start(); o.stop(ac.currentTime + .25);
+  } catch (e) {}
+}
+// primo tocco: sblocca audio e voce (iOS li consente solo dopo un gesto dell'utente)
+function unlockAudio() {
+  removeEventListener('touchend', unlockAudio); removeEventListener('click', unlockAudio);
+  try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); } catch (e) {}
+  if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speakT = Date.now(); speechSynthesis.speak(u); }
+}
+addEventListener('touchend', unlockAudio); addEventListener('click', unlockAudio);
+
+function speak(text, check = false) {
   if (!voiceOn || !text || !('speechSynthesis' in window)) return;
-  const go = () => {
+  const go = retry => {
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'it-IT'; if (itVoice) u.voice = itVoice;
+    u.lang = 'it-IT'; if (itVoice && !retry) u.voice = itVoice;
+    let started = false;
+    u.onstart = () => { started = true; };
     u.onerror = e => { if (e.error !== 'interrupted' && e.error !== 'canceled') toast('Voce: ' + e.error); };
     curUtt = u; // tiene un riferimento: senza, Chrome può interrompere la voce a metà
-    speechSynthesis.resume();
+    if (speechSynthesis.paused) speechSynthesis.resume();
     speechSynthesis.speak(u);
+    if (check) setTimeout(() => { // controllo: se non è partita, riprova senza voce forzata, poi segnala il problema
+      if (started || curUtt !== u) return;
+      if (!retry) { speechSynthesis.cancel(); setTimeout(() => go(true), 150); }
+      else { beep(); toast(`Voce bloccata dal browser (voci installate: ${speechSynthesis.getVoices().length})`); }
+    }, 2000);
   };
   // cancel() seguito subito da speak() viene ignorato da iOS/Chrome: si aspetta un attimo,
   // e un messaggio appena partito non viene tagliato ma messo in coda
@@ -201,8 +228,8 @@ function toggleVoice() {
   voiceOn = !voiceOn; $('btnVoice').textContent = voiceOn ? '🔊' : '🔇';
   if (!('speechSynthesis' in window)) return toast('Il browser non supporta la sintesi vocale');
   if (!voiceOn) return speechSynthesis.cancel();
-  pickVoice(); speak('Voce attiva.');
-  if (!itVoice) toast('Voce italiana non trovata: installala dalle impostazioni del telefono');
+  pickVoice(); speak('Voce attiva.', true);
+  toast(itVoice ? `Voce: ${itVoice.name}` : 'Nessuna voce italiana installata: uso quella predefinita');
 }
 
 /* ===== Mappa ===== */
@@ -381,6 +408,25 @@ function selectPlace(p) {
   setMode('place'); startGPS(); previewRoute(true);
 }
 
+/* ===== Ricerca vocale ===== */
+let rec = null;
+function voiceSearch() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return toast('Ricerca vocale non supportata qui: usa il microfono della tastiera');
+  if (rec) { rec.stop(); return; }
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  const input = $('searchInput'), btn = $('btnMic'), ph = input.placeholder;
+  rec = new SR(); rec.lang = 'it-IT'; rec.interimResults = true;
+  rec.onstart = () => { btn.classList.add('rec'); input.placeholder = 'Ti ascolto…'; input.value = ''; };
+  rec.onresult = e => {
+    const r = e.results[e.results.length - 1]; input.value = r[0].transcript;
+    if (r.isFinal) searchPlace();
+  };
+  rec.onerror = e => toast({ 'not-allowed': 'Permesso microfono negato', 'service-not-allowed': 'Riconoscimento vocale non consentito (attiva Siri e Dettatura)', 'no-speech': 'Non ho sentito nulla', 'network': 'Serve la connessione a internet' }[e.error] || 'Errore microfono: ' + e.error);
+  rec.onend = () => { rec = null; btn.classList.remove('rec'); input.placeholder = ph; };
+  try { rec.start(); } catch (e) { rec = null; toast('Microfono non disponibile'); }
+}
+
 /* ===== Percorso (Valhalla) ===== */
 async function computeRoute(from, to) {
   const t = $('routeType').value, auto = {};
@@ -404,12 +450,12 @@ function setRoute(r) {
 async function previewRoute(fit) {
   if (!dest) return;
   const id = ++reqId;
-  if (!user) { $('routeInfo').textContent = 'Attiva il GPS (📍) per il percorso'; map.flyTo({ center: dest, zoom: 15 }); return; }
-  $('routeInfo').textContent = 'Calcolo…';
+  const c0 = map.getCenter(), from = user || [c0.lng, c0.lat];
+  $('routeInfo').textContent = user ? 'Calcolo…' : 'GPS non attivo: calcolo dal centro mappa…';
   try {
-    const r = await computeRoute(user, dest);
+    const r = await computeRoute(from, dest);
     if (id !== reqId) return;
-    setRoute(r); $('routeInfo').textContent = `${fmtMin(r.sec)} · ${r.km.toFixed(1)} km`;
+    setRoute(r); $('routeInfo').textContent = `${fmtMin(r.sec)} · ${r.km.toFixed(1)} km${user ? '' : ' · da centro mappa'}`;
     if (fit) {
       const s = r.shape, b = s.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(s[0], s[0]));
       map.fitBounds(b, { padding: { top: 60, bottom: 320, left: 40, right: 70 }, pitch: 0, bearing: 0, maxZoom: 16, duration: 900 });
@@ -424,10 +470,10 @@ async function previewRoute(fit) {
 /* ===== Navigazione ===== */
 function startNavigation() {
   if (!route || !user) return toast('Percorso non ancora pronto');
-  setMode('nav'); setFollow(true); setHeadingUp(true); enableSensors();
+  setMode('nav'); setFollow(true); setHeadingUp(true);
   stepIdx = 1; announced = 0; minD = Infinity; offCount = 0; navDone = false; spokenCams = new Set();
   acquireWake();
-  speak(`Navigazione avviata. ${route.steps[0]?.instruction || ''}`);
+  speak(`Navigazione avviata. ${route.steps[0]?.instruction || ''}`, true); enableSensors();
   tickNav(user);
 }
 function tickNav(pos) {
